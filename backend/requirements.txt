@@ -1,7 +1,10 @@
-# Direct dependencies, pinned for reproducible builds.
+# Runtime dependencies, pinned for reproducible builds.
 fastapi==0.162.0
 uvicorn[standard]==0.54.0
 pydantic==2.14.3
 pydantic-settings==2.16.2
-SQLAlchemy==2.1.8
+SQLAlchemy[asyncio]==2.1.8
+psycopg[binary]==3.3.8
+alembic==1.20.1
+pgvector==0.5.1
 python-dotenv==1.2.4

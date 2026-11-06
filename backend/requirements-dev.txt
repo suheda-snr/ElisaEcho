@@ -1,0 +1,5 @@
+# Development and test dependencies (installed in the dev Docker image).
+-r requirements.txt
+pytest==9.2.0
+pytest-asyncio==1.4.1.post1
+httpx==0.28.1

@@ -6,6 +6,9 @@ from typing import Annotated
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+# Environments in which development-only features (write endpoints, seeding) are allowed.
+DEVELOPMENT_ENVIRONMENTS = frozenset({"development", "test"})
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -22,9 +25,15 @@ class Settings(BaseSettings):
     # CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
-    # Phase 2 secrets. Optional for now, so the API starts without them.
-    gemini_api_key: SecretStr | None = None
+    # PostgreSQL (Tiger Data). Optional so the API still starts without a database.
+    # Accepts postgres://, postgresql:// or postgresql+psycopg:// URLs.
     database_url: SecretStr | None = None
+    database_pool_size: int = 5
+    database_max_overflow: int = 5
+    database_connect_timeout_seconds: int = 5
+
+    # Phase 3. Optional for now.
+    gemini_api_key: SecretStr | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -32,6 +41,22 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @field_validator("environment")
+    @classmethod
+    def normalize_environment(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def empty_database_url_is_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @property
+    def is_development(self) -> bool:
+        return self.environment in DEVELOPMENT_ENVIRONMENTS
 
 
 @lru_cache
