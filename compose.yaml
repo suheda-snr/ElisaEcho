@@ -1,0 +1,37 @@
+# Local development environment for Elisa Echo.
+#   Start: docker compose up --build
+#   Stop:  docker compose down
+name: elisa-echo
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      # File events from Windows/macOS hosts don't always reach containers;
+      # polling keeps --reload reliable. Set to false on Linux if you prefer.
+      WATCHFILES_FORCE_POLLING: ${DOCKER_FILE_POLLING:-true}
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # Used only by the Vite dev server (Node), never shipped to the browser.
+      API_PROXY_TARGET: http://backend:8000
+      VITE_USE_POLLING: ${DOCKER_FILE_POLLING:-true}
+    volumes:
+      - ./frontend:/app
+      # Keep the container's Linux node_modules separate from the host's.
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  frontend_node_modules:

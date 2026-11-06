@@ -1,0 +1,24 @@
+# Shared rules for the whole repository.
+# Service-specific rules live in frontend/.gitignore and backend/.gitignore.
+
+# --- Environment files (never commit real secrets) ---
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Editors ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
