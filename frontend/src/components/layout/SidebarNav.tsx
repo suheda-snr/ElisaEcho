@@ -13,13 +13,13 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
     navItems.filter((i) => i.group === 'setup'),
   ]
   return (
-    <nav aria-label="Main navigation" className="flex flex-col gap-1">
+    <nav aria-label="Main navigation" className="flex flex-col">
       {groups.map((items, index) => (
         <div
           key={index}
           className={cn(
-            'flex flex-col gap-1',
-            index > 0 && 'mt-3 border-t border-sidebar-border pt-3',
+            'flex flex-col gap-0.5',
+            index > 0 && 'mt-4 border-t border-sidebar-border pt-4',
           )}
         >
           {items.map(({ to, label, icon: Icon }) => (
@@ -30,15 +30,15 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
               onClick={onNavigate}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  'focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
+                  'group flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors duration-150',
+                  'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                   isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
+                    ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )
               }
             >
-              <Icon className="size-[18px] shrink-0" aria-hidden="true" />
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate">{label}</span>
             </NavLink>
           ))}

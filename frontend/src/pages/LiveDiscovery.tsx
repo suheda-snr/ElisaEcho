@@ -1,15 +1,17 @@
-import { FlaskConical, Hash, LoaderCircle, Pause, Play, RotateCcw } from 'lucide-react'
+import { FlaskConical, Pause, Play, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 
 import { Disclosure } from '@/components/common/Disclosure'
+import { Panel, PanelHeader } from '@/components/common/Panel'
 import { Notice } from '@/components/common/States'
 import { SourceBadge } from '@/components/common/StatusBadges'
 import { KnowledgePanel } from '@/components/discovery/KnowledgePanel'
 import { MessageList, ThreadList } from '@/components/discovery/ThreadFeed'
+import { displayTitle } from '@/lib/displayTitle'
 import { formatClock } from '@/components/discovery/labels'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   isPipelineBusy,
   useDiscoveryEvents,
@@ -19,7 +21,6 @@ import {
   useSimulationControls,
   useThreadMessages,
 } from '@/hooks/useDiscovery'
-import { useSlackStatus } from '@/hooks/useIntegrations'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
 
@@ -32,13 +33,14 @@ const levelStyles = {
 
 export default function LiveDiscovery() {
   const status = useDiscoveryStatus()
-  const slack = useSlackStatus()
   const live = isPipelineBusy(status.data)
   const threads = useDiscoveryThreads(live)
   const events = useDiscoveryEvents(live)
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [followLive, setFollowLive] = useState(true)
+  // ?thread= opens a specific conversation (deep link); otherwise follow live activity.
+  const [params] = useSearchParams()
+  const [selectedId, setSelectedId] = useState<string | null>(params.get('thread'))
+  const [followLive, setFollowLive] = useState(!params.get('thread'))
   const [demoOpen, setDemoOpen] = useState(false)
   const controls = useSimulationControls(() => {
     events.reset()
@@ -80,7 +82,6 @@ export default function LiveDiscovery() {
   const devControls = status.data?.development_controls ?? false
   const mutationError = controls.start.error ?? controls.stop.error ?? controls.reset.error
   const progress = sim && sim.total > 0 ? (sim.delivered + sim.skipped_duplicates) / sim.total : 0
-  const busy = (analysis?.analyzing ?? 0) + (analysis?.queued ?? 0)
 
   const selectThread = (id: string) => {
     setSelectedId(id)
@@ -112,40 +113,15 @@ export default function LiveDiscovery() {
           </Button>
         }
       >
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-          <span className="inline-flex items-center gap-1.5">
-            <Hash
-              className={cn(
-                'size-4',
-                slack.data?.connected ? 'text-emerald-600' : 'text-muted-foreground',
-              )}
-              aria-hidden="true"
-            />
-            {slack.data?.connected
-              ? `Slack connected · ${slack.data.monitored_channels.length} channel(s)`
-              : 'Slack not connected'}
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            {busy > 0 && (
-              <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
-            )}
-            {!analysis
-              ? 'AI status…'
-              : !analysis.gemini_configured
-                ? 'AI analysis not configured'
-                : analysis.paused_until
-                  ? `AI paused until ${formatClock(analysis.paused_until)} (quota)`
-                  : busy > 0
-                    ? `Analyzing ${busy} conversation(s)`
-                    : 'AI idle'}
-          </span>
+        <div className="flex flex-wrap items-center gap-3" aria-live="polite">
           {sim?.running && (
-            <span className="text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden="true" />
               Demo feed {sim.delivered + sim.skipped_duplicates}/{sim.total}
             </span>
           )}
           {!followLive && (
-            <Button variant="ghost" size="sm" onClick={() => setFollowLive(true)}>
+            <Button variant="ghost" size="sm" className="h-7" onClick={() => setFollowLive(true)}>
               Follow live activity
             </Button>
           )}
@@ -153,78 +129,76 @@ export default function LiveDiscovery() {
       </PageHeader>
 
       {demoOpen && (
-        <Card>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-medium text-foreground">Demo mode</span>
-              <span className="text-sm text-muted-foreground">
-                Streams synthetic chat, Teams and email conversations (incl. the TRN-042 case)
-                through the same pipeline as Slack.
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {sim?.running ? (
-                <Button
-                  variant="outline"
-                  onClick={() => controls.stop.mutate()}
-                  disabled={!devControls || controls.stop.isPending}
-                >
-                  <Pause aria-hidden="true" />
-                  Stop feed
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    setFollowLive(true)
-                    controls.start.mutate()
-                  }}
-                  disabled={!devControls || controls.start.isPending || !status.data}
-                >
-                  <Play aria-hidden="true" />
-                  Start demo feed
-                </Button>
-              )}
+        <div className="flex flex-col gap-3 border-y bg-muted/30 px-4 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-foreground">Demo mode</span>
+            <span className="text-sm text-muted-foreground">
+              Streams synthetic chat, Teams and email conversations (incl. the TRN-042 case) through
+              the same pipeline as Slack.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {sim?.running ? (
               <Button
-                variant="ghost"
-                onClick={onReset}
-                disabled={!devControls || controls.reset.isPending}
+                variant="outline"
+                onClick={() => controls.stop.mutate()}
+                disabled={!devControls || controls.stop.isPending}
               >
-                <RotateCcw aria-hidden="true" />
-                Reset demo data
+                <Pause aria-hidden="true" />
+                Stop feed
               </Button>
-              {sim && sim.total > 0 && (
-                <span className="flex min-w-40 flex-1 items-center gap-2 text-xs text-muted-foreground tabular-nums">
-                  <span
-                    className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
-                    aria-hidden="true"
-                  >
-                    <span
-                      className="block h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${Math.round(progress * 100)}%` }}
-                    />
-                  </span>
-                  {sim.delivered + sim.skipped_duplicates}/{sim.total}
-                </span>
-              )}
-            </div>
-            {!devControls && status.data && (
-              <p className="text-sm text-muted-foreground">
-                Demo controls are available in development only.
-              </p>
+            ) : (
+              <Button
+                onClick={() => {
+                  setFollowLive(true)
+                  controls.start.mutate()
+                }}
+                disabled={!devControls || controls.start.isPending || !status.data}
+              >
+                <Play aria-hidden="true" />
+                Start demo feed
+              </Button>
             )}
-          </CardContent>
-        </Card>
+            <Button
+              variant="ghost"
+              onClick={onReset}
+              disabled={!devControls || controls.reset.isPending}
+            >
+              <RotateCcw aria-hidden="true" />
+              Reset demo data
+            </Button>
+            {sim && sim.total > 0 && (
+              <span className="flex min-w-40 flex-1 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+                <span
+                  className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
+                  aria-hidden="true"
+                >
+                  <span
+                    className="block h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${Math.round(progress * 100)}%` }}
+                  />
+                </span>
+                {sim.delivered + sim.skipped_duplicates}/{sim.total}
+              </span>
+            )}
+          </div>
+          {!devControls && status.data && (
+            <p className="text-sm text-muted-foreground">
+              Demo controls are available in development only.
+            </p>
+          )}
+        </div>
       )}
 
       {status.isError && <Notice tone="error">{getErrorMessage(status.error)}</Notice>}
       {mutationError != null && <Notice tone="error">{getErrorMessage(mutationError)}</Notice>}
 
-      <div className="grid gap-5 lg:grid-cols-12">
-        <Card className="gap-3 lg:col-span-4">
-          <CardHeader>
-            <CardTitle>Conversations</CardTitle>
-          </CardHeader>
-          <CardContent className="max-h-[40rem] overflow-y-auto">
+      {/* Three panels, same card language as the rest of the app: a bordered white surface
+          with its own header, instead of one box pretending to be three widgets. */}
+      <div className="grid gap-4 md:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.4fr)] md:grid-rows-[34rem_auto] xl:h-[calc(100dvh-13.5rem)] xl:min-h-[34rem] xl:grid-cols-[minmax(17rem,0.9fr)_minmax(0,1.45fr)_minmax(19rem,1fr)] xl:grid-rows-1 2xl:grid-cols-[minmax(19rem,0.85fr)_minmax(0,1.5fr)_minmax(21rem,0.95fr)]">
+        <Panel className="flex min-h-0 flex-col" aria-label="Conversations">
+          <PanelHeader title="Conversations" meta={threadItems.length || undefined} />
+          <div className="max-h-[26rem] min-h-0 flex-1 overflow-y-auto p-3 md:max-h-none">
             {threads.isError ? (
               <Notice tone="error">{getErrorMessage(threads.error)}</Notice>
             ) : (
@@ -235,43 +209,49 @@ export default function LiveDiscovery() {
                 onSelect={selectThread}
               />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
 
-        <Card className="gap-3 lg:col-span-4">
-          <CardHeader>
-            <CardTitle className="truncate" title={selected?.title ?? undefined}>
-              {selected?.title ?? 'Messages'}
-            </CardTitle>
-            {selected && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <SourceBadge type={selected.source_type} />
-                {selected.source_name && <span className="truncate">{selected.source_name}</span>}
+        <Panel className="flex min-h-0 flex-col" aria-label="Messages">
+          <PanelHeader
+            title={
+              selected ? (
+                <span className="block truncate" title={displayTitle(selected.title ?? '')}>
+                  {displayTitle(selected.title ?? selected.external_thread_id)}
+                </span>
+              ) : (
+                'Messages'
+              )
+            }
+            meta={
+              selected && (
+                <span className="flex items-center gap-2">
+                  <SourceBadge type={selected.source_type} />
+                </span>
+              )
+            }
+          />
+          <div className="max-h-[30rem] min-h-0 flex-1 overflow-y-auto bg-canvas/40 px-4 py-4 md:max-h-none">
+            {selected ? (
+              <MessageList
+                messages={messages.data?.items ?? []}
+                highlighted={highlighted}
+                isLoading={messages.isPending}
+              />
+            ) : (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                Select a conversation.
               </p>
             )}
-          </CardHeader>
-          <CardContent>
-            <div className="max-h-[40rem] overflow-y-auto pr-1">
-              {selected ? (
-                <MessageList
-                  messages={messages.data?.items ?? []}
-                  highlighted={highlighted}
-                  isLoading={messages.isPending}
-                />
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  Select a conversation.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
 
-        <Card className="gap-3 lg:col-span-4">
-          <CardHeader>
-            <CardTitle>Discovered context</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Panel
+          className="flex min-h-0 flex-col md:col-span-2 xl:col-span-1"
+          aria-label="Discovered context"
+        >
+          <PanelHeader title="Discovered context" />
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <KnowledgePanel
               thread={selected}
               item={item.data}
@@ -285,11 +265,15 @@ export default function LiveDiscovery() {
               retrying={controls.analyze.isPending}
               retryError={controls.analyze.error}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       </div>
 
-      <Disclosure title="Activity log" count={events.events.length}>
+      <Disclosure
+        title={<span className="text-muted-foreground">Activity log</span>}
+        count={events.events.length}
+        className="-mt-3 border-transparent bg-transparent [&>summary]:px-2 [&>summary]:text-[13px]"
+      >
         {events.events.length === 0 ? (
           <p className="text-sm text-muted-foreground">No activity yet.</p>
         ) : (

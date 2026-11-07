@@ -11,9 +11,7 @@ import type { Guide, GuideNode } from '@/types/api'
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        {title}
-      </h3>
+      <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
       {children}
     </section>
   )

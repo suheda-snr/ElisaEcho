@@ -52,9 +52,7 @@ function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
           <Icon className="size-3" aria-hidden="true" />
           {style.label}
         </span>
-        {active && (
-          <span className="text-[11px] font-semibold text-primary uppercase">Current</span>
-        )}
+        {active && <span className="text-[11px] font-semibold text-primary">Current</span>}
       </div>
       <p className="text-sm leading-snug font-medium text-foreground">{node.title}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1">

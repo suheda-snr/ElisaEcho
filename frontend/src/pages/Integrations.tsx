@@ -3,6 +3,7 @@ import { type FormEvent, type ReactNode, useState } from 'react'
 import { Link } from 'react-router'
 
 import { Disclosure } from '@/components/common/Disclosure'
+import { tagClass } from '@/components/common/StatusBadges'
 import { Loading, Notice } from '@/components/common/States'
 import { formatTime } from '@/components/discovery/labels'
 import { SourceConnectors } from '@/components/sources/SourceConnectors'
@@ -63,10 +64,10 @@ const statusInfo: Record<
 }
 
 const toneClass = {
-  ok: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  warn: 'border-amber-200 bg-amber-50 text-amber-900',
-  error: 'border-red-200 bg-red-50 text-red-800',
-  off: 'border-slate-200 bg-slate-50 text-slate-700',
+  ok: 'bg-emerald-50 text-emerald-800',
+  warn: 'bg-amber-50 text-amber-900',
+  error: 'bg-red-50 text-red-800',
+  off: 'bg-muted text-muted-foreground',
 }
 
 export default function Integrations() {
@@ -138,11 +139,7 @@ function SlackCard({ status }: { status: SlackStatus }) {
             </p>
           </div>
         </div>
-        <span
-          className={cn('rounded-full border px-3 py-1 text-sm font-medium', toneClass[info.tone])}
-        >
-          {info.label}
-        </span>
+        <span className={cn(tagClass, 'h-6 px-2', toneClass[info.tone])}>{info.label}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 text-sm">
         <p className="text-foreground/80">{info.text}</p>
@@ -170,15 +167,19 @@ function SlackCard({ status }: { status: SlackStatus }) {
         </dl>
         {status.last_error && <Notice tone="error">{status.last_error}</Notice>}
 
-        <div className="flex flex-col gap-2">
+        <div className="divide-y overflow-hidden rounded-md border">
           <Disclosure
+            className="rounded-none border-x-0 border-t-0 border-b last:border-b-0"
             title="Channels"
             count={status.monitored_channels.length}
             defaultOpen={status.connected && status.monitored_channels.length === 0}
           >
             <ChannelsCard status={status} />
           </Disclosure>
-          <Disclosure title="Connection details">
+          <Disclosure
+            title="Connection details"
+            className="rounded-none border-x-0 border-t-0 border-b last:border-b-0"
+          >
             <dl className="flex flex-col gap-2">
               <Row label="Last event received">
                 {status.last_event_at ? formatTime(status.last_event_at) : '–'}
@@ -207,10 +208,16 @@ function SlackCard({ status }: { status: SlackStatus }) {
               Tokens stay on the backend. Public channels only, no direct messages.
             </p>
           </Disclosure>
-          <Disclosure title="Activity">
+          <Disclosure
+            title="Activity"
+            className="rounded-none border-x-0 border-t-0 border-b last:border-b-0"
+          >
             <EventsCard />
           </Disclosure>
-          <Disclosure title="Setup guide">
+          <Disclosure
+            title="Setup guide"
+            className="rounded-none border-x-0 border-t-0 border-b last:border-b-0"
+          >
             <SetupGuide />
           </Disclosure>
         </div>

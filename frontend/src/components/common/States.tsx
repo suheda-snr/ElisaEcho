@@ -61,16 +61,7 @@ export function Loading({ label = 'Loading…' }: { label?: string }) {
   )
 }
 
-/** Small uppercase heading for sections inside a card. */
+/** Section heading inside a panel (sentence case). */
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <h3
-      className={cn(
-        'text-xs font-semibold tracking-wide text-muted-foreground uppercase',
-        className,
-      )}
-    >
-      {children}
-    </h3>
-  )
+  return <h3 className={cn('text-[13px] font-semibold text-foreground', className)}>{children}</h3>
 }

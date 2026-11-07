@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   BrainCircuit,
   CircleAlert,
   CircleDashed,
@@ -11,9 +10,10 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import { Disclosure } from '@/components/common/Disclosure'
+import { Insight } from '@/components/common/Insight'
 import { Notice, SectionTitle } from '@/components/common/States'
 import { EntityChips, ResolutionBadge, ReviewBadge } from '@/components/common/StatusBadges'
-import { KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
+import { OutdatedBadge } from '@/components/context/ContextInfo'
 import {
   classificationLabels,
   evidenceLabels,
@@ -51,9 +51,9 @@ function MessageRef({ id, messages }: { id: string; messages: Message[] }) {
 
 function Waiting({ icon: Icon, children }: { icon: typeof BrainCircuit; children: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-      <Icon className="size-6" aria-hidden="true" />
-      <div className="max-w-xs">{children}</div>
+    <div className="flex flex-col items-center gap-2 rounded-lg border bg-muted/20 px-5 py-7 text-center text-sm leading-relaxed text-muted-foreground">
+      <Icon className="size-6 text-muted-foreground/70" aria-hidden="true" />
+      <div className="max-w-[26ch]">{children}</div>
     </div>
   )
 }
@@ -113,7 +113,7 @@ export function KnowledgePanel({
 
       {candidate?.detection_status === 'rejected' && (
         <Waiting icon={CircleDashed}>
-          <span className="block font-medium text-foreground">No operational knowledge</span>
+          <span className="block font-semibold text-foreground">No operational knowledge</span>
           {candidate.summary ?? 'This conversation was ignored.'}
         </Waiting>
       )}
@@ -167,60 +167,72 @@ export function KnowledgePanel({
 /** The main finding: what, which entity, which action, confirmed?, evidence. */
 function Finding({ item, messages }: { item: KnowledgeItemDetail; messages: Message[] }) {
   const missing = item.discovery?.missing_information ?? []
+  const evidence = item.evidence.filter(
+    (e, i) => item.evidence.findIndex((o) => o.message.id === e.message.id) === i,
+  )
   return (
     <>
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <ResolutionBadge status={item.resolution_status} />
-          <ReviewBadge status={item.approval_status} />
-          <KnowledgeTypeBadge type={item.knowledge_type} />
-          <OutdatedBadge validTo={item.valid_to} />
+      <Insight
+        label={
+          item.knowledge_type === 'site_access' ? 'Site access discovered' : 'Discovered knowledge'
+        }
+        badges={
+          <>
+            <ResolutionBadge status={item.resolution_status} />
+            <ReviewBadge status={item.approval_status} />
+            <OutdatedBadge validTo={item.valid_to} />
+          </>
+        }
+        title={item.title}
+      >
+        <EntityChips links={item.entity_links} max={5} />
+        <div>
+          <p className="text-xs font-medium text-insight-foreground">
+            {item.knowledge_type === 'site_access' ? 'How to get access' : 'What to do'}
+          </p>
+          <p className="mt-0.5 text-[15px] leading-relaxed font-medium text-foreground">
+            {item.resolution ?? 'No action recorded yet'}
+          </p>
         </div>
-        <h3 className="text-lg leading-snug font-semibold text-foreground">{item.title}</h3>
-        <EntityChips links={item.entity_links} max={6} />
-      </div>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button size="sm" asChild>
+            <Link to={`/knowledge?item=${item.id}`}>Open knowledge</Link>
+          </Button>
+          <Button size="sm" variant="outline" className="bg-card" asChild>
+            <Link to={`/troubleshoot?problem=${encodeURIComponent(item.problem_description)}`}>
+              <Workflow aria-hidden="true" />
+              Troubleshoot
+            </Link>
+          </Button>
+        </div>
+      </Insight>
 
-      <div className="flex flex-col gap-1.5">
-        <SectionTitle>{item.knowledge_type === 'site_access' ? 'Access' : 'Action'}</SectionTitle>
-        <p className="text-[15px] font-medium text-foreground">
-          {item.resolution ?? 'No action recorded yet'}
-        </p>
-        <p className="text-sm text-muted-foreground">{item.problem_description}</p>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <SectionTitle>Evidence ({item.evidence.length})</SectionTitle>
-        <ul className="flex flex-col gap-1.5">
-          {item.evidence.map((e) => (
-            <li key={e.id} className="flex items-start gap-2 text-sm">
+      <div className="flex flex-col gap-2">
+        <SectionTitle>Evidence in this conversation</SectionTitle>
+        <ul className="flex flex-col gap-2">
+          {evidence.map((e) => (
+            <li key={e.id} className="flex items-start gap-2.5 text-[13px]">
               <MessageRef id={e.message.id} messages={messages} />
               <span className="min-w-0">
                 <span className="font-medium text-foreground">
-                  {evidenceLabels[e.evidence_type]}
+                  {item.evidence
+                    .filter((o) => o.message.id === e.message.id)
+                    .map((o) => evidenceLabels[o.evidence_type])
+                    .join(', ')}
                 </span>
-                {e.explanation && <span className="text-muted-foreground"> · {e.explanation}</span>}
+                {e.explanation && (
+                  <span className="block text-muted-foreground">{e.explanation}</span>
+                )}
               </span>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" asChild>
-          <Link to={`/knowledge?item=${item.id}`}>
-            Open knowledge
-            <ArrowRight aria-hidden="true" />
-          </Link>
-        </Button>
-        <Button size="sm" variant="outline" asChild>
-          <Link to={`/troubleshoot?problem=${encodeURIComponent(item.problem_description)}`}>
-            <Workflow aria-hidden="true" />
-            Troubleshoot
-          </Link>
-        </Button>
-      </div>
-
       <div className="flex flex-col gap-2">
+        <Disclosure title="Problem as described">
+          <p className="text-sm text-foreground">{item.problem_description}</p>
+        </Disclosure>
         {item.attempted_actions.length > 0 && (
           <Disclosure title="What was tried" count={item.attempted_actions.length}>
             <ol className="flex flex-col gap-2">

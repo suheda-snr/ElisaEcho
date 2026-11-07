@@ -5,13 +5,12 @@ import { Sidebar } from '@/components/layout/Sidebar'
 
 export function AppLayout() {
   return (
-    <div className="flex min-h-svh bg-muted/40">
+    <div className="flex min-h-dvh bg-canvas">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          {/* Wide enough for the three-pane workspaces, still readable on large screens. */}
-          <div className="mx-auto w-full max-w-[1440px]">
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+          <div className="mx-auto w-full max-w-[1400px]">
             <Outlet />
           </div>
         </main>

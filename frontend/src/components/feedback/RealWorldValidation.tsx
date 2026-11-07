@@ -23,10 +23,7 @@ export function RealWorldValidation({ item }: { item: KnowledgeItemDetail }) {
 
   return (
     <section id="validation" className="flex flex-col gap-3" aria-labelledby="validation-title">
-      <h3
-        id="validation-title"
-        className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
-      >
+      <h3 id="validation-title" className="text-[13px] font-semibold text-foreground">
         Real-world validation
       </h3>
 

@@ -275,7 +275,7 @@ function FeedbackForm({
 
   return (
     <form onSubmit={save} className="flex flex-col gap-3" aria-label={`Feedback on ${node.title}`}>
-      <p className="text-sm">
+      <p data-recommendation-label className="text-sm">
         <span className="text-muted-foreground">Recommendation: </span>
         <span className="font-medium text-foreground">{node.title}</span>
       </p>
@@ -432,5 +432,10 @@ export function StepFeedback({
 }) {
   const feedback = useSessionFeedback(session.id)
   if (node.knowledge_item_ids.length === 0) return null
-  return <NodeFeedback key={node.id} session={session} node={node} existing={feedback.data ?? []} />
+  // Inside a step the recommendation is already the heading, so its label is hidden.
+  return (
+    <div className="[&_[data-recommendation-label]]:hidden">
+      <NodeFeedback key={node.id} session={session} node={node} existing={feedback.data ?? []} />
+    </div>
+  )
 }

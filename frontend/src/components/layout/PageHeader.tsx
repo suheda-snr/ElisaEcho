@@ -11,21 +11,18 @@ interface PageHeaderProps {
   children?: ReactNode
 }
 
-/** Consistent page title row: title + one-line explanation on the left, actions on the right. */
+/** Page title row: title and one line of context on the left, actions on the right. */
 export function PageHeader({ title, description, actions, children }: PageHeaderProps) {
   const item = navItemFor(useLocation().pathname)
+  const text = description ?? item?.description
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.01em] text-foreground text-balance">
             {title ?? item?.label}
           </h1>
-          {(description ?? item?.description) && (
-            <p className="mt-1 max-w-3xl text-[15px] text-muted-foreground">
-              {description ?? item?.description}
-            </p>
-          )}
+          {text && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{text}</p>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>

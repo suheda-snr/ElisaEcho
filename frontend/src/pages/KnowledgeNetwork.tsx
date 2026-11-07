@@ -14,11 +14,10 @@ import { RelationshipCard } from '@/components/consolidation/RelationshipCard'
 import { KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
 import { Disclosure } from '@/components/common/Disclosure'
 import { EmptyState, Notice } from '@/components/common/States'
-import { ResolutionBadge } from '@/components/common/StatusBadges'
+import { ResolutionBadge, tagClass } from '@/components/common/StatusBadges'
 import { InventoryCard } from '@/components/sources/InventoryCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   useGroupRelationships,
   useKnowledgeGroup,
@@ -60,7 +59,10 @@ export default function KnowledgeNetwork() {
         </EmptyState>
       ) : (
         <div className="grid gap-6 lg:grid-cols-12">
-          <ul className="flex flex-col gap-2 lg:col-span-4" aria-label="Knowledge groups">
+          <ul
+            className="divide-y self-start overflow-hidden rounded-lg border bg-card lg:col-span-4"
+            aria-label="Knowledge groups"
+          >
             {items.map((g) => (
               <li key={g.id}>
                 <button
@@ -68,19 +70,21 @@ export default function KnowledgeNetwork() {
                   onClick={() => setParams({ group: g.id }, { replace: true })}
                   aria-pressed={g.id === selectedId}
                   className={cn(
-                    'flex w-full flex-col gap-1.5 rounded-xl border bg-card p-3 text-left transition-colors',
+                    'flex w-full cursor-pointer flex-col gap-1.5 px-4 py-3.5 text-left transition-colors duration-150',
                     'focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
                     g.id === selectedId
-                      ? 'border-primary/50 ring-1 ring-primary/30'
-                      : 'hover:bg-muted/40',
+                      ? 'bg-accent/70 shadow-[inset_3px_0_0_var(--primary)]'
+                      : 'hover:bg-muted/50',
                   )}
                 >
                   <span className="text-sm font-medium text-foreground">{g.title}</span>
                   <span className="text-xs text-muted-foreground">{groupHeadline(g)}</span>
                   <span className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline">{g.independent_conversations} conversations</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {g.independent_conversations} conversations
+                    </span>
                     {g.conflict_count > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+                      <span className={cn(tagClass, 'bg-amber-50 text-amber-900')}>
                         <TriangleAlert className="size-3" aria-hidden="true" />
                         {g.conflict_count} conflicting
                       </span>
@@ -123,7 +127,7 @@ function Section({
 }) {
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+      <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">
         {icon}
         {title}
       </h3>
@@ -160,184 +164,196 @@ function GroupView({
   const problem = group.shared_problem ?? group.members[0]?.problem_description ?? group.title
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-6">
-        <div className="flex flex-col gap-3">
-          <h2 className="text-xl font-semibold text-foreground">{group.title}</h2>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline">{groupHeadline(group)}</Badge>
-            <Badge variant="outline">
-              {group.independent_conversations} independent conversations
-            </Badge>
-            <Badge variant="secondary">AI summary · needs review</Badge>
-          </div>
-          <div>
-            <Button size="sm" asChild>
-              <Link to={`/troubleshoot?problem=${encodeURIComponent(problem)}`}>
-                <Workflow aria-hidden="true" />
-                Troubleshoot with these cases
-              </Link>
-            </Button>
-          </div>
+    <article className="flex flex-col gap-6 rounded-lg border bg-card p-5">
+      <div className="flex flex-col gap-3">
+        <h2 className="text-xl leading-snug font-semibold text-foreground text-balance">
+          {group.title}
+        </h2>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+          <span>{groupHeadline(group)}</span>
+          <span>{group.independent_conversations} independent conversations</span>
+          <span className={cn(tagClass, 'bg-muted text-muted-foreground')}>
+            AI summary, needs review
+          </span>
         </div>
-
-        {group.summary_pending && (
-          <Notice tone="info">The summary is being updated for recent changes.</Notice>
-        )}
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <Section title="Shared problem">
-            <p className="text-sm text-foreground">{problem}</p>
-            {group.shared_symptoms.length > 0 && <List items={group.shared_symptoms} empty="" />}
-          </Section>
-          <Section title="Known environment">
-            <List items={group.known_environment} empty="Not stated in the conversations." />
-          </Section>
+        <div>
+          <Button size="sm" asChild>
+            <Link to={`/troubleshoot?problem=${encodeURIComponent(problem)}`}>
+              <Workflow aria-hidden="true" />
+              Troubleshoot with these cases
+            </Link>
+          </Button>
         </div>
+      </div>
 
-        <Section title="Compare cases">
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[40rem] text-left text-sm">
-              <thead className="bg-muted/50 text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Case</th>
-                  <th className="px-3 py-2 font-medium">Reported fix</th>
-                  <th className="px-3 py-2 font-medium">Where</th>
-                  <th className="px-3 py-2 font-medium">Conditions</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.members.map((m) => (
-                  <tr key={m.id} className="border-t align-top">
-                    <td className="px-3 py-2.5">
-                      <Link
-                        to={`/knowledge?item=${m.id}`}
-                        className="font-medium text-foreground hover:underline"
-                      >
-                        {caseLabel.get(m.id)}
-                      </Link>
-                      <span
-                        className="block max-w-48 truncate text-xs text-muted-foreground"
-                        title={m.conversation ?? m.title}
-                      >
-                        {m.conversation ?? m.title}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-foreground">{m.resolution ?? '–'}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap">
-                      {m.equipment.join(', ') || (
-                        <span className="font-sans text-muted-foreground">not stated</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-foreground/80">
-                      {m.applicability_conditions.slice(0, 2).join('; ') || (
-                        <span className="text-muted-foreground">not stated</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="flex flex-col items-start gap-1">
-                        <ResolutionBadge status={m.resolution_status} />
-                        <OutdatedBadge validTo={m.valid_to} />
-                        <KnowledgeTypeBadge type={m.knowledge_type} />
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
+      {group.summary_pending && (
+        <Notice tone="info">The summary is being updated for recent changes.</Notice>
+      )}
 
-        <Section title={`Resolution paths (${group.solutions.length})`}>
-          {group.solutions.length === 0 && (
-            <p className="text-sm text-muted-foreground">No resolution paths summarized yet.</p>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Section title="Shared problem">
+          <p className="text-sm text-foreground">{problem}</p>
+          {group.shared_symptoms.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 pt-1" aria-label="Shared symptoms">
+              {group.shared_symptoms.map((x) => (
+                <li key={x} className={cn(tagClass, 'bg-muted text-foreground/80')}>
+                  {x}
+                </li>
+              ))}
+            </ul>
           )}
-          <ol className="flex flex-col gap-2">
-            {group.solutions.map((s) => (
-              <li
-                key={s.description}
-                className="flex flex-col gap-2 rounded-lg border bg-background p-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-foreground">{s.description}</span>
-                  <span
-                    className={cn(
-                      'rounded-full border px-2 py-0.5 text-xs font-medium',
-                      solutionOutcomeClasses[s.outcome],
-                    )}
-                  >
-                    {solutionOutcomeLabels[s.outcome]}
-                  </span>
-                </div>
-                {s.conditions.length > 0 && (
-                  <ul className="list-disc pl-5 text-sm text-muted-foreground">
-                    {s.conditions.map((c) => (
-                      <li key={c}>{c}</li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                  Reported in
-                  {s.knowledge_ids.map((id) => (
+        </Section>
+        <Section title="Known environment">
+          <List items={group.known_environment} empty="Not stated in the conversations." />
+        </Section>
+      </div>
+
+      <Section title="Compare cases">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[44rem] table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[11%]" />
+              <col className="w-[31%]" />
+              <col className="w-[13%]" />
+              <col className="w-[23%]" />
+              <col className="w-[22%]" />
+            </colgroup>
+            <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Case</th>
+                <th className="px-3 py-2 font-medium">Reported fix</th>
+                <th className="px-3 py-2 font-medium">Where</th>
+                <th className="px-3 py-2 font-medium">Conditions</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {group.members.map((m) => (
+                <tr key={m.id} className="border-t align-top">
+                  <td className="px-3 py-2.5">
                     <Link
-                      key={id}
-                      to={`/knowledge?item=${id}`}
-                      className="rounded border bg-muted px-1.5 font-medium text-foreground hover:underline"
+                      to={`/knowledge?item=${m.id}`}
+                      className="font-medium text-foreground hover:underline"
                     >
-                      {caseLabel.get(id) ?? 'case'}
+                      {caseLabel.get(m.id)}
                     </Link>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </Section>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          <Section title="Failed attempts">
-            <List items={group.failed_attempts} empty="None reported." />
-          </Section>
-          <Section
-            title="Contradictions"
-            icon={
-              group.contradictions.length > 0 ? (
-                <TriangleAlert className="size-3.5 text-amber-700" aria-hidden="true" />
-              ) : undefined
-            }
-          >
-            <List items={group.contradictions} empty="None found." />
-          </Section>
-          <Section title="Missing information">
-            <List items={group.missing_information} empty="Nothing flagged." />
-          </Section>
+                    <span
+                      className="block truncate text-xs text-muted-foreground"
+                      title={m.conversation ?? m.title}
+                    >
+                      {m.conversation ?? m.title}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 leading-relaxed text-foreground">
+                    {m.resolution ?? '–'}
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap">
+                    {m.equipment.join(', ') || (
+                      <span className="font-sans text-muted-foreground">not stated</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-[13px] leading-relaxed text-foreground/80">
+                    {m.applicability_conditions.slice(0, 2).join('; ') || (
+                      <span className="text-muted-foreground">not stated</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className="flex flex-col items-start gap-1">
+                      <ResolutionBadge status={m.resolution_status} />
+                      <OutdatedBadge validTo={m.valid_to} />
+                      <KnowledgeTypeBadge type={m.knowledge_type} />
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+      </Section>
 
-        <Disclosure title="Pairwise comparisons and evidence" count={relationships.length}>
-          {relationships.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pairwise comparisons available.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {[...withConditions, ...relationships.filter((r) => !withConditions.includes(r))].map(
-                (r) => (
-                  <RelationshipCard key={r.id} relationship={r} />
-                ),
+      <Section title={`Resolution paths (${group.solutions.length})`}>
+        {group.solutions.length === 0 && (
+          <p className="text-sm text-muted-foreground">No resolution paths summarized yet.</p>
+        )}
+        <ol className="flex flex-col gap-2">
+          {group.solutions.map((s) => (
+            <li
+              key={s.description}
+              className="flex flex-col gap-2 rounded-md border-l-2 border-insight-border bg-insight/50 px-4 py-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium text-foreground">{s.description}</span>
+                <span className={cn(tagClass, solutionOutcomeClasses[s.outcome])}>
+                  {solutionOutcomeLabels[s.outcome]}
+                </span>
+              </div>
+              {s.conditions.length > 0 && (
+                <ul className="list-disc pl-5 text-sm text-muted-foreground">
+                  {s.conditions.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
               )}
-            </div>
-          )}
-        </Disclosure>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                Reported in
+                {s.knowledge_ids.map((id) => (
+                  <Link
+                    key={id}
+                    to={`/knowledge?item=${id}`}
+                    className="rounded border bg-muted px-1.5 font-medium text-foreground hover:underline"
+                  >
+                    {caseLabel.get(id) ?? 'case'}
+                  </Link>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </Section>
 
-        <Disclosure title="Show relationship graph">
-          <CaseGraph group={group} relationships={relationships} caseLabel={caseLabel} />
-        </Disclosure>
+      <div className="grid gap-6 md:grid-cols-3">
+        <Section title="Failed attempts">
+          <List items={group.failed_attempts} empty="None reported." />
+        </Section>
+        <Section
+          title="Contradictions"
+          icon={
+            group.contradictions.length > 0 ? (
+              <TriangleAlert className="size-3.5 text-amber-700" aria-hidden="true" />
+            ) : undefined
+          }
+        >
+          <List items={group.contradictions} empty="None found." />
+        </Section>
+        <Section title="Missing information">
+          <List items={group.missing_information} empty="Nothing flagged." />
+        </Section>
+      </div>
 
-        <p className="text-xs text-muted-foreground">
-          Summary generated by {group.summary_model ?? 'AI'}
-          {group.generated_at && ` on ${new Date(group.generated_at).toLocaleString()}`}. Values
-          such as firmware versions are only shown when they appear in the original messages.
-        </p>
-      </CardContent>
-    </Card>
+      <Disclosure title="Pairwise comparisons and evidence" count={relationships.length}>
+        {relationships.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No pairwise comparisons available.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {[...withConditions, ...relationships.filter((r) => !withConditions.includes(r))].map(
+              (r) => (
+                <RelationshipCard key={r.id} relationship={r} />
+              ),
+            )}
+          </div>
+        )}
+      </Disclosure>
+
+      <Disclosure title="Show relationship graph">
+        <CaseGraph group={group} relationships={relationships} caseLabel={caseLabel} />
+      </Disclosure>
+
+      <p className="text-xs text-muted-foreground">
+        Summary generated by {group.summary_model ?? 'AI'}
+        {group.generated_at && ` on ${new Date(group.generated_at).toLocaleString()}`}. Values such
+        as firmware versions are only shown when they appear in the original messages.
+      </p>
+    </article>
   )
 }
 

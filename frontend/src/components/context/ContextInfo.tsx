@@ -2,6 +2,7 @@ import { CalendarClock, Cpu, History, KeyRound, MapPin, Network, Zap } from 'luc
 import { Link } from 'react-router'
 
 import { formatTime } from '@/components/discovery/labels'
+import { tagClass } from '@/components/common/StatusBadges'
 import { cn } from '@/lib/utils'
 import type { ContextFields, EntityLink, KnowledgeType } from '@/types/api'
 
@@ -12,7 +13,7 @@ function isOutdated(validTo: string | null | undefined): boolean {
 export function KnowledgeTypeBadge({ type }: { type: KnowledgeType }) {
   if (type !== 'site_access') return null
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800">
+    <span className={cn(tagClass, 'bg-violet-50 text-violet-800')}>
       <KeyRound className="size-3" aria-hidden="true" />
       Site access
     </span>
@@ -22,7 +23,7 @@ export function KnowledgeTypeBadge({ type }: { type: KnowledgeType }) {
 export function OutdatedBadge({ validTo }: { validTo: string | null | undefined }) {
   if (!isOutdated(validTo)) return null
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+    <span className={cn(tagClass, 'bg-red-50 text-red-800')}>
       <History className="size-3" aria-hidden="true" />
       Outdated
     </span>
@@ -43,25 +44,22 @@ export function ContextSection({ context }: { context: ContextFields }) {
   const outdated = isOutdated(context.valid_to)
   return (
     <section className="flex flex-col gap-3" aria-labelledby="context-title">
-      <h3
-        id="context-title"
-        className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
-      >
+      <h3 id="context-title" className="text-[13px] font-semibold text-foreground">
         Context and validity
       </h3>
       <div
         className={cn(
-          'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm',
-          outdated ? 'border-red-200 bg-red-50 text-red-900' : 'bg-muted/30 text-foreground',
+          'flex items-start gap-2 text-sm',
+          outdated
+            ? 'rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-900'
+            : 'text-foreground/85',
         )}
       >
         <CalendarClock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         <div className="flex flex-col gap-0.5">
           <span>
             Valid from {context.valid_from ? formatTime(context.valid_from) : 'unknown'}
-            {outdated
-              ? ` until ${formatTime(context.valid_to)}`
-              : ' · still believed true (no newer information replaces it)'}
+            {outdated ? ` until ${formatTime(context.valid_to)}` : ', still believed true'}
           </span>
           {outdated && context.superseded_by && (
             <span>
@@ -87,7 +85,7 @@ export function ContextSection({ context }: { context: ContextFields }) {
             return (
               <li
                 key={`${link.entity_type}-${link.relation}-${link.label}`}
-                className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs"
+                className="inline-flex items-center gap-1.5 rounded-md bg-muted/70 px-2 py-1 text-xs"
                 title={
                   link.source === 'inventory'
                     ? 'Derived from the network inventory'

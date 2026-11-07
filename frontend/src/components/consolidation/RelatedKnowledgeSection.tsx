@@ -19,10 +19,7 @@ export function RelatedKnowledgeSection({ itemId }: { itemId: string }) {
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="related-knowledge">
-      <h3
-        id="related-knowledge"
-        className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
-      >
+      <h3 id="related-knowledge" className="text-[13px] font-semibold text-foreground">
         Related knowledge
       </h3>
       {related.isError && <p className="text-sm text-red-700">{getErrorMessage(related.error)}</p>}

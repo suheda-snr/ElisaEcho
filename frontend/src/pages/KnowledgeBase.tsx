@@ -3,6 +3,7 @@ import { type ReactNode, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { Disclosure } from '@/components/common/Disclosure'
+import { Insight } from '@/components/common/Insight'
 import { EmptyState, Loading, Notice, SectionTitle } from '@/components/common/States'
 import {
   EntityChips,
@@ -20,7 +21,6 @@ import {
 } from '@/components/discovery/labels'
 import { RealWorldValidation } from '@/components/feedback/RealWorldValidation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { useKnowledgeItem, useKnowledgeItems } from '@/hooks/useDiscovery'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
@@ -120,7 +120,10 @@ export default function KnowledgeBase() {
         <p className="text-sm text-muted-foreground">
           {items.length} of {list.data?.total ?? 0}
         </p>
-        <ul className="flex flex-col gap-1.5" aria-label="Knowledge items">
+        <ul
+          className="divide-y overflow-hidden rounded-lg border bg-card"
+          aria-label="Knowledge items"
+        >
           {items.map((k) => (
             <li key={k.id}>
               <button
@@ -128,11 +131,11 @@ export default function KnowledgeBase() {
                 onClick={() => setParams({ item: k.id }, { replace: true })}
                 aria-pressed={k.id === selectedId}
                 className={cn(
-                  'flex w-full flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5 text-left transition-colors',
+                  'flex w-full cursor-pointer flex-col gap-1.5 px-3.5 py-3 text-left transition-colors duration-150',
                   'focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
                   k.id === selectedId
-                    ? 'border-primary/60 ring-1 ring-primary/30'
-                    : 'hover:bg-muted/40',
+                    ? 'bg-accent/70 shadow-[inset_3px_0_0_var(--primary)]'
+                    : 'hover:bg-muted/50',
                 )}
               >
                 <span className="line-clamp-2 text-sm font-medium text-foreground">{k.title}</span>
@@ -147,9 +150,7 @@ export default function KnowledgeBase() {
             </li>
           ))}
           {items.length === 0 && list.data && (
-            <li className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              Nothing matches this filter.
-            </li>
+            <li className="p-4 text-sm text-muted-foreground">Nothing matches this filter.</li>
           )}
         </ul>
       </div>
@@ -186,179 +187,181 @@ function KnowledgeView({ item }: { item: KnowledgeItemDetail }) {
   const discovery = item.discovery
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-6">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
+    <article className="flex flex-col gap-6 rounded-lg border bg-card p-5">
+      <Insight
+        label={item.knowledge_type === 'site_access' ? 'Site access' : 'Discovered knowledge'}
+        badges={
+          <>
             <ResolutionBadge status={item.resolution_status} />
             <ReviewBadge status={item.approval_status} />
-            <KnowledgeTypeBadge type={item.knowledge_type} />
             <OutdatedBadge validTo={item.valid_to} />
-          </div>
-          <h2 className="text-xl leading-snug font-semibold text-foreground">{item.title}</h2>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link to={`/troubleshoot?problem=${encodeURIComponent(item.problem_description)}`}>
-                <Workflow aria-hidden="true" />
-                Start troubleshooting
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to={`/knowledge?q=${encodeURIComponent(item.problem_description)}`}>
-                <SearchIcon aria-hidden="true" />
-                Find similar
-              </Link>
-            </Button>
-          </div>
+          </>
+        }
+        title={item.title}
+      >
+        <div>
+          <p className="text-xs font-medium text-insight-foreground">
+            {item.knowledge_type === 'site_access'
+              ? 'How to get access'
+              : confirmed
+                ? 'Fix, confirmed in chat'
+                : 'Suggested fix'}
+          </p>
+          <p className="mt-0.5 text-[15px] leading-relaxed font-medium text-foreground">
+            {item.resolution ?? 'No fix recorded'}
+          </p>
         </div>
-
-        <ContextSection context={item} />
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <Block title="Problem">
-            <p className="text-[15px] text-foreground">{item.problem_description}</p>
-            {item.symptoms.length > 0 && (
-              <ul className="list-disc pl-5 text-sm text-foreground/80">
-                {item.symptoms.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-            )}
-            {item.root_cause && (
-              <p className="text-sm text-foreground/80">
-                <span className="font-medium">Root cause:</span> {item.root_cause}
-              </p>
-            )}
-          </Block>
-          <Block
-            title={
-              item.knowledge_type === 'site_access'
-                ? 'Access'
-                : confirmed
-                  ? 'Fix (confirmed in chat)'
-                  : 'Suggested fix'
-            }
-          >
-            <p className="text-[15px] font-medium text-foreground">
-              {item.resolution ?? 'No fix recorded'}
-            </p>
-            {item.applicability_conditions.length > 0 && (
-              <ul className="list-disc pl-5 text-sm text-foreground/80">
-                {item.applicability_conditions.map((c) => (
-                  <li key={c}>{c}</li>
-                ))}
-              </ul>
-            )}
-          </Block>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button asChild>
+            <Link to={`/troubleshoot?problem=${encodeURIComponent(item.problem_description)}`}>
+              <Workflow aria-hidden="true" />
+              Start troubleshooting
+            </Link>
+          </Button>
+          <Button variant="outline" className="bg-card" asChild>
+            <Link to={`/knowledge?q=${encodeURIComponent(item.problem_description)}`}>
+              <SearchIcon aria-hidden="true" />
+              Find similar
+            </Link>
+          </Button>
         </div>
+      </Insight>
 
-        {item.attempted_actions.length > 0 && (
-          <Block title="What was tried">
-            <ol className="flex flex-col divide-y rounded-lg border">
-              {item.attempted_actions.map((a, i) => (
-                <li
-                  key={`${a.action}-${i}`}
-                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
-                >
-                  <span className="text-sm text-foreground">{a.action}</span>
-                  <span className="flex items-center gap-1.5 text-xs">
-                    {a.message_ids
-                      .filter((id) => position.has(id))
-                      .map((id) => (
-                        <a
-                          key={id}
-                          href={`#evidence-${id}`}
-                          className="rounded bg-muted px-1.5 font-mono text-muted-foreground hover:text-foreground"
-                        >
-                          #{position.get(id)}
-                        </a>
-                      ))}
-                    <span
-                      className={cn(
-                        'font-medium',
-                        a.outcome === 'successful'
-                          ? 'text-emerald-700'
-                          : a.outcome === 'unsuccessful'
-                            ? 'text-red-700'
-                            : 'text-muted-foreground',
-                      )}
-                    >
-                      {outcomeLabels[a.outcome]}
-                    </span>
-                  </span>
-                </li>
+      <ContextSection context={item} />
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Block title="Problem">
+          <p className="text-[15px] text-foreground">{item.problem_description}</p>
+          {item.symptoms.length > 0 && (
+            <ul className="list-disc pl-5 text-sm text-foreground/80">
+              {item.symptoms.map((s) => (
+                <li key={s}>{s}</li>
               ))}
-            </ol>
-          </Block>
-        )}
-
-        <Block title={`Original messages (${messages.length})`}>
-          {messages.length === 0 ? (
-            <p className="rounded-lg border border-dashed px-3 py-3 text-sm text-muted-foreground">
-              No supporting messages are linked. Use with caution.
+            </ul>
+          )}
+          {item.root_cause && (
+            <p className="text-sm text-foreground/80">
+              <span className="font-medium">Root cause:</span> {item.root_cause}
             </p>
-          ) : (
-            <ol className="flex flex-col gap-3">
-              {messages.map((e) => (
-                <li key={e.id} id={`evidence-${e.message.id}`} className="scroll-mt-24">
-                  <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
-                    <span className="font-mono">#{position.get(e.message.id)}</span>
-                    <span className="font-semibold text-foreground">
-                      {e.message.author_display_name ?? e.message.author_external_id}
-                    </span>
-                    <span>{formatTime(e.message.sent_at)}</span>
-                    <span>· {rolesOf(e.message.id).join(', ')}</span>
-                  </div>
-                  <blockquote className="flex gap-2 rounded-lg border-l-3 border-primary/50 bg-muted/50 px-3 py-2 text-sm leading-relaxed text-foreground">
-                    <MessageSquareQuote
-                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    {e.message.deleted_at ? (
-                      <span className="text-muted-foreground italic">Deleted at the source.</span>
-                    ) : (
-                      <span className="whitespace-pre-wrap">{e.message.content}</span>
-                    )}
-                  </blockquote>
-                  {e.explanation && (
-                    <p className="mt-1 text-xs text-muted-foreground">{e.explanation}</p>
-                  )}
-                </li>
-              ))}
-            </ol>
           )}
         </Block>
-
-        <RealWorldValidation item={item} />
-
-        <RelatedKnowledgeSection itemId={item.id} />
-
-        {discovery && (
-          <Disclosure title="How it was found">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-              <dt className="text-muted-foreground">Classified as</dt>
-              <dd>{classificationLabels[discovery.classification] ?? discovery.classification}</dd>
-              <dt className="text-muted-foreground">Analyzed</dt>
-              <dd>{formatTime(discovery.analyzed_at)}</dd>
-              {discovery.model_name && (
-                <>
-                  <dt className="text-muted-foreground">Model</dt>
-                  <dd className="font-mono text-xs">{discovery.model_name}</dd>
-                </>
-              )}
-              <dt className="text-muted-foreground">Missing</dt>
-              <dd>{discovery.missing_information.join('; ') || 'Nothing reported'}</dd>
-            </dl>
-            {discovery.validation_flags.length > 0 && (
-              <ul className="mt-2 flex flex-col gap-1 text-sm text-amber-900">
-                {discovery.validation_flags.map((f) => (
-                  <li key={f}>· {f}</li>
-                ))}
-              </ul>
-            )}
-          </Disclosure>
+        {item.applicability_conditions.length > 0 && (
+          <Block title="When it applies">
+            <ul className="flex flex-col gap-1 text-sm leading-relaxed text-foreground/85">
+              {item.applicability_conditions.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </Block>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {item.attempted_actions.length > 0 && (
+        <Block title="What was tried">
+          <ol className="flex flex-col divide-y rounded-lg border">
+            {item.attempted_actions.map((a, i) => (
+              <li
+                key={`${a.action}-${i}`}
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+              >
+                <span className="text-sm text-foreground">{a.action}</span>
+                <span className="flex items-center gap-1.5 text-xs">
+                  {a.message_ids
+                    .filter((id) => position.has(id))
+                    .map((id) => (
+                      <a
+                        key={id}
+                        href={`#evidence-${id}`}
+                        className="rounded bg-muted px-1.5 font-mono text-muted-foreground hover:text-foreground"
+                      >
+                        #{position.get(id)}
+                      </a>
+                    ))}
+                  <span
+                    className={cn(
+                      'font-medium',
+                      a.outcome === 'successful'
+                        ? 'text-emerald-700'
+                        : a.outcome === 'unsuccessful'
+                          ? 'text-red-700'
+                          : 'text-muted-foreground',
+                    )}
+                  >
+                    {outcomeLabels[a.outcome]}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </Block>
+      )}
+
+      <Block title={`Original messages (${messages.length})`}>
+        {messages.length === 0 ? (
+          <p className="rounded-lg border border-dashed px-3 py-3 text-sm text-muted-foreground">
+            No supporting messages are linked. Use with caution.
+          </p>
+        ) : (
+          <ol className="flex flex-col gap-3">
+            {messages.map((e) => (
+              <li key={e.id} id={`evidence-${e.message.id}`} className="scroll-mt-24">
+                <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+                  <span className="font-mono">#{position.get(e.message.id)}</span>
+                  <span className="font-semibold text-foreground">
+                    {e.message.author_display_name ?? e.message.author_external_id}
+                  </span>
+                  <span>{formatTime(e.message.sent_at)}</span>
+                  <span>· {rolesOf(e.message.id).join(', ')}</span>
+                </div>
+                <blockquote className="flex gap-2 rounded-lg border-l-3 border-primary/50 bg-muted/50 px-3 py-2 text-sm leading-relaxed text-foreground">
+                  <MessageSquareQuote
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  {e.message.deleted_at ? (
+                    <span className="text-muted-foreground italic">Deleted at the source.</span>
+                  ) : (
+                    <span className="whitespace-pre-wrap">{e.message.content}</span>
+                  )}
+                </blockquote>
+                {e.explanation && (
+                  <p className="mt-1 text-xs text-muted-foreground">{e.explanation}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </Block>
+
+      <RealWorldValidation item={item} />
+
+      <RelatedKnowledgeSection itemId={item.id} />
+
+      {discovery && (
+        <Disclosure title="How it was found">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+            <dt className="text-muted-foreground">Classified as</dt>
+            <dd>{classificationLabels[discovery.classification] ?? discovery.classification}</dd>
+            <dt className="text-muted-foreground">Analyzed</dt>
+            <dd>{formatTime(discovery.analyzed_at)}</dd>
+            {discovery.model_name && (
+              <>
+                <dt className="text-muted-foreground">Model</dt>
+                <dd className="font-mono text-xs">{discovery.model_name}</dd>
+              </>
+            )}
+            <dt className="text-muted-foreground">Missing</dt>
+            <dd>{discovery.missing_information.join('; ') || 'Nothing reported'}</dd>
+          </dl>
+          {discovery.validation_flags.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1 text-sm text-amber-900">
+              {discovery.validation_flags.map((f) => (
+                <li key={f}>· {f}</li>
+              ))}
+            </ul>
+          )}
+        </Disclosure>
+      )}
+    </article>
   )
 }

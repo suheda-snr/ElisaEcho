@@ -18,8 +18,8 @@ export function Disclosure({
   className?: string
 }) {
   return (
-    <details className={cn('group rounded-lg border bg-background', className)} open={defaultOpen}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-foreground select-none hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
+    <details className={cn('group rounded-md border bg-card', className)} open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-foreground transition-colors duration-150 select-none hover:bg-muted/60 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
           aria-hidden="true"

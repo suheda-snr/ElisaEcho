@@ -83,34 +83,23 @@ export function SourceConnectors({
     (c) => c.enabled && c.status === 'connected',
   )
 
-  const status = (key: Key): { label: string; className: string; action: string } => {
+  /** What each source can actually do today, stated plainly (no fake connection states). */
+  const status = (key: Key): { text: string; dot: string; action: string } => {
     if (key === 'slack') {
       return slack?.connected
         ? {
-            label: 'Connected',
-            className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+            text: slack.workspace_name ? `Connected to ${slack.workspace_name}` : 'Connected',
+            dot: 'bg-emerald-500',
             action: 'Manage',
           }
-        : {
-            label: 'Not connected',
-            className: 'border-amber-200 bg-amber-50 text-amber-900',
-            action: 'Set up',
-          }
+        : { text: 'Not connected', dot: 'bg-amber-500', action: 'Set up' }
     }
     if (key === 'email') {
       return mailboxConnected
-        ? {
-            label: 'Mailbox connected',
-            className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-            action: 'Manage',
-          }
-        : {
-            label: 'Sample import',
-            className: 'border-blue-200 bg-blue-50 text-blue-800',
-            action: 'Connect',
-          }
+        ? { text: 'Mailbox connected', dot: 'bg-emerald-500', action: 'Manage' }
+        : { text: 'Imports emails', dot: 'bg-slate-300', action: 'Connect' }
     }
-    return { label: 'Preview', className: 'bg-muted text-muted-foreground', action: 'Connect' }
+    return { text: 'Not available yet', dot: 'bg-slate-300', action: 'Connect' }
   }
 
   const open = (c: Connector) => {
@@ -121,22 +110,22 @@ export function SourceConnectors({
 
   return (
     <section aria-labelledby="sources-title" className="flex flex-col gap-3">
-      <h2 id="sources-title" className="text-base font-semibold text-foreground">
+      <h2 id="sources-title" className="text-sm font-semibold text-foreground">
         Sources
       </h2>
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <ul className="grid overflow-hidden rounded-lg border bg-card sm:grid-cols-2 lg:grid-cols-5">
         {CONNECTORS.map((c) => {
           const Icon = c.icon
-          const s = status(c.key)
+          const st = status(c.key)
           return (
             <li
               key={c.key}
-              className="flex items-center gap-3 rounded-xl border bg-card p-3 lg:flex-col lg:items-stretch"
+              className="flex items-center gap-3 border-b p-4 last:border-b-0 sm:border-r lg:flex-col lg:items-stretch lg:gap-4 lg:border-b-0 lg:last:border-r-0"
             >
-              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 <span
                   className={cn(
-                    'flex size-9 shrink-0 items-center justify-center rounded-lg text-white',
+                    'flex size-10 shrink-0 items-center justify-center rounded-lg text-white',
                     c.tile,
                   )}
                 >
@@ -146,18 +135,25 @@ export function SourceConnectors({
                   <span className="block truncate text-sm font-semibold text-foreground">
                     {c.name}
                   </span>
-                  {s.label !== 'Preview' && s.label !== 'Sample import' && (
-                    <span className={cn(pill, s.className)}>{s.label}</span>
-                  )}
+                  <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span
+                      className={cn('size-1.5 shrink-0 rounded-full', st.dot)}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{st.text}</span>
+                  </span>
                 </span>
               </div>
               <Button
                 size="sm"
                 variant={c.key === 'slack' ? 'outline' : 'secondary'}
-                className={c.key === 'slack' ? undefined : 'bg-muted hover:bg-muted/70'}
+                className={cn(
+                  'cursor-pointer',
+                  c.key === 'slack' ? undefined : 'bg-muted hover:bg-muted/70',
+                )}
                 onClick={() => open(c)}
               >
-                {s.action}
+                {st.action}
               </Button>
             </li>
           )

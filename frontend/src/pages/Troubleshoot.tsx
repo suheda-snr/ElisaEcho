@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  ChevronRight,
   CircleCheck,
   GitBranch,
   History,
@@ -11,10 +12,12 @@ import {
   TriangleAlert,
   Workflow,
 } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { Disclosure } from '@/components/common/Disclosure'
+import { Panel, PanelHeader } from '@/components/common/Panel'
+import { tagClass } from '@/components/common/StatusBadges'
 import { EmptyState, Loading, Notice } from '@/components/common/States'
 import { formatTime } from '@/components/discovery/labels'
 import { RecommendationFeedback, StepFeedback } from '@/components/feedback/RecommendationFeedback'
@@ -262,21 +265,28 @@ function Workspace({
   const guide = session.guide
   const [view, setView] = useState<View>(initialView)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const issues = guide.conflicts.length + guide.uncertainties.length
+  const issues = [...guide.conflicts, ...guide.uncertainties]
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <SessionBadge status={session.status} />
         <span className="text-sm text-muted-foreground">
-          From {guide.knowledge.length} knowledge item{guide.knowledge.length === 1 ? '' : 's'}
-          {guide.equipment_identifier && ` · ${guide.equipment_identifier}`}
+          Built from {guide.knowledge.length} knowledge item
+          {guide.knowledge.length === 1 ? '' : 's'}
         </span>
-        <span className="inline-flex items-center gap-1.5 text-sm text-amber-800">
+        {guide.equipment_identifier && (
+          <span className="font-mono text-xs text-foreground">{guide.equipment_identifier}</span>
+        )}
+        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
           <ShieldAlert className="size-4" aria-hidden="true" />
-          Decision support: nothing is executed for you
+          Decision support only
         </span>
-        <div role="tablist" aria-label="View" className="ml-auto flex rounded-lg bg-muted p-1">
+        <div
+          role="tablist"
+          aria-label="View"
+          className="ml-auto inline-flex rounded-md border bg-card p-0.5"
+        >
           {(
             [
               ['steps', 'Step-by-step', ListOrdered],
@@ -290,9 +300,9 @@ function Workspace({
               aria-selected={view === value}
               onClick={() => setView(value)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded px-3 text-sm font-medium transition-colors duration-150',
                 view === value
-                  ? 'bg-background text-foreground shadow-sm'
+                  ? 'bg-accent text-accent-foreground'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
@@ -303,50 +313,40 @@ function Workspace({
         </div>
       </div>
 
-      {issues > 0 && (
+      {issues.length > 0 && (
         <Disclosure
           title={
             <span className="inline-flex items-center gap-2 text-amber-900">
               <TriangleAlert className="size-4" aria-hidden="true" />
-              {[
-                guide.conflicts.length > 0 &&
-                  `${guide.conflicts.length} conflict${guide.conflicts.length === 1 ? '' : 's'} between sources`,
-                guide.uncertainties.length > 0 &&
-                  `${guide.uncertainties.length} open question${guide.uncertainties.length === 1 ? '' : 's'}`,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
+              {guide.conflicts.length > 0
+                ? `Sources disagree on ${guide.conflicts.length} point${guide.conflicts.length === 1 ? '' : 's'}`
+                : `${issues.length} open question${issues.length === 1 ? '' : 's'}`}
             </span>
           }
-          className="border-amber-200"
+          className="border-amber-200 bg-amber-50/40"
         >
-          <ul className="flex flex-col gap-1 text-sm text-foreground">
-            {[...guide.conflicts, ...guide.uncertainties].map((c) => (
-              <li key={c}>· {c}</li>
+          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-foreground">
+            {issues.map((c) => (
+              <li key={c}>{c}</li>
             ))}
           </ul>
         </Disclosure>
       )}
 
       {view === 'steps' ? (
-        <div className="grid gap-6 lg:grid-cols-12">
-          <div className="flex flex-col gap-4 lg:col-span-8">
-            {session.status === 'in_progress' ? (
-              <CurrentStep session={session} />
-            ) : (
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+          {session.status === 'in_progress' ? (
+            <CurrentStep session={session} />
+          ) : (
+            <div className="flex flex-col gap-4">
               <Completed session={session} />
-            )}
-          </div>
-          <div className="flex flex-col gap-4 lg:col-span-4">
-            <PathCard session={session} />
-            <Disclosure title="Session history" count={session.steps.length}>
-              <HistoryTimeline session={session} />
-            </Disclosure>
-          </div>
+            </div>
+          )}
+          <PathCard session={session} />
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-8">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div>
             <GuideFlow
               guide={guide}
               activePath={session.active_path}
@@ -358,17 +358,15 @@ function Workspace({
               Your path is highlighted. Select a step to see why it is there.
             </p>
           </div>
-          <Card className="lg:col-span-4">
-            <CardContent className="max-h-[46rem] overflow-y-auto">
-              <EvidencePanel
-                guide={guide}
-                node={
-                  guide.nodes.find((n) => n.id === (selectedNodeId ?? session.current_node_id)) ??
-                  null
-                }
-              />
-            </CardContent>
-          </Card>
+          <Panel as="aside" className="max-h-[46rem] overflow-y-auto p-5">
+            <EvidencePanel
+              guide={guide}
+              node={
+                guide.nodes.find((n) => n.id === (selectedNodeId ?? session.current_node_id)) ??
+                null
+              }
+            />
+          </Panel>
         </div>
       )}
     </>
@@ -391,13 +389,7 @@ function StepHeader({ node, index }: { node: GuideNode; index: number }) {
         <Icon className="size-3.5" aria-hidden="true" />
         {style.label}
       </span>
-      {support && (
-        <span
-          className={cn('rounded-full border px-2 py-0.5 text-xs font-medium', support.className)}
-        >
-          {support.label}
-        </span>
-      )}
+      {support && <span className={cn(tagClass, support.className)}>{support.label}</span>}
     </div>
   )
 }
@@ -406,90 +398,146 @@ function CurrentStep({ session }: { session: TroubleshootingSession }) {
   const guide = session.guide
   const { step } = useSessionActions(session.id)
   const node = guide.nodes.find((n) => n.id === session.current_node_id) ?? null
+  const answers = useMemo(
+    () => (node ? guide.edges.filter((e) => e.source_node_id === node.id) : []),
+    [guide.edges, node],
+  )
+  const atEnd = node?.node_type === 'resolution' || node?.node_type === 'escalation'
+  const actionStep = node?.node_type === 'recommendation' || node?.node_type === 'resolution'
+
+  // Keys 1-9 choose an answer (ignored while typing in a field).
+  useEffect(() => {
+    if (atEnd || answers.length === 0) return
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const index = Number(event.key) - 1
+      const edge = answers[index]
+      if (edge && !step.isPending) step.mutate({ type: 'answer', answer_label: edge.answer_label })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [answers, atEnd, step])
+
   if (!node) {
     return <EmptyState icon={Workflow} title="This session has no current step" />
   }
-  const answers = guide.edges.filter((e) => e.source_node_id === node.id)
-  const atEnd = node.node_type === 'resolution' || node.node_type === 'escalation'
-  const actionStep = node.node_type === 'recommendation' || node.node_type === 'resolution'
 
   return (
-    <Card className="ring-1 ring-primary/20">
-      <CardContent className="flex flex-col gap-5">
+    <Panel className="overflow-hidden">
+      <div className="flex flex-col gap-4 px-6 pt-6 pb-5 sm:px-8 sm:pt-8">
+        <StepHeader node={node} index={session.active_path.length} />
         <div className="flex flex-col gap-2">
-          <StepHeader node={node} index={session.active_path.length} />
-          <h2 className="text-2xl leading-tight font-semibold text-foreground">{node.title}</h2>
-          {node.question && <p className="text-lg text-foreground">{node.question}</p>}
+          <h2 className="text-[26px] leading-tight font-semibold tracking-[-0.015em] text-foreground text-balance">
+            {node.title}
+          </h2>
+          {node.question && (
+            <p className="text-[17px] leading-relaxed text-foreground">{node.question}</p>
+          )}
           {node.description && (
-            <p className="text-[15px] leading-relaxed text-foreground/80">{node.description}</p>
+            <p className="max-w-[68ch] text-[15px] leading-relaxed text-muted-foreground">
+              {node.description}
+            </p>
           )}
         </div>
 
         {node.conflict_note && <Notice tone="warning">{node.conflict_note}</Notice>}
         {node.requires_manual_verification && (
-          <p className="flex items-center gap-1.5 text-sm text-amber-800">
+          <p className="flex items-center gap-1.5 text-[13px] text-amber-800">
             <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
-            Not an approved procedure: check it applies and follow your change process.
+            Not an approved procedure. Check it applies and follow your change process.
           </p>
         )}
 
         {!atEnd && answers.length > 0 && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {answers.map((edge) => (
-              <Button
+          <div className="flex flex-col gap-2 pt-1" role="group" aria-label="Answers">
+            {answers.map((edge, index) => (
+              <button
                 key={edge.id}
-                size="lg"
-                variant={answers.length === 1 ? 'default' : 'outline'}
+                type="button"
                 disabled={step.isPending}
                 onClick={() => step.mutate({ type: 'answer', answer_label: edge.answer_label })}
-                className="h-auto min-h-12 justify-start py-3 text-left text-[15px] whitespace-normal"
+                className={cn(
+                  'group flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-md border bg-card px-3.5 py-3 text-left transition-colors duration-150',
+                  'hover:border-primary/50 hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
               >
-                <span className="flex flex-col items-start">
-                  {edge.answer_label}
+                <kbd className="flex size-6 shrink-0 items-center justify-center rounded border bg-muted font-mono text-xs text-muted-foreground group-hover:border-primary/40 group-hover:text-primary">
+                  {index + 1}
+                </kbd>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-medium text-foreground">
+                    {edge.answer_label}
+                  </span>
                   {edge.condition && (
-                    <span className="text-xs font-normal opacity-75">{edge.condition}</span>
+                    <span className="block text-[13px] text-muted-foreground">
+                      {edge.condition}
+                    </span>
                   )}
                 </span>
-              </Button>
+                {step.isPending ? (
+                  <LoaderCircle
+                    className="size-4 animate-spin text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ChevronRight
+                    className="size-4 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
             ))}
+            {answers.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                Tip: press 1–{Math.min(answers.length, 9)} to answer.
+              </p>
+            )}
           </div>
         )}
         {step.error != null && <Notice tone="error">{getErrorMessage(step.error)}</Notice>}
+      </div>
 
-        {actionStep && (
-          <div className="rounded-xl border bg-muted/30 p-4">
-            <p className="mb-3 font-medium text-foreground">
-              {atEnd ? 'Did this resolve the problem?' : 'After trying it: did it work?'}
-            </p>
-            <StepFeedback session={session} node={node} />
-          </div>
-        )}
-
-        {atEnd && <FinishSession session={session} />}
-
-        <div className="flex flex-col gap-2">
-          <Disclosure title="Why this step?">
-            <EvidencePanel guide={guide} node={node} />
-          </Disclosure>
-          <Disclosure title="Add a note">
-            <NoteForm session={session} />
-          </Disclosure>
+      {actionStep && (
+        <div className="border-t bg-insight/60 px-6 py-5 sm:px-8">
+          <p className="mb-3 text-sm font-semibold text-foreground">
+            {atEnd ? 'Did this resolve the problem?' : 'After you try it: did it work?'}
+          </p>
+          <StepFeedback session={session} node={node} />
         </div>
+      )}
 
-        {session.active_path.length > 1 && (
+      {atEnd && (
+        <div className="border-t px-6 py-5 sm:px-8">
+          <FinishSession session={session} />
+        </div>
+      )}
+
+      <div className="border-t">
+        <Disclosure title="Why this step?" className="rounded-none border-0">
+          <EvidencePanel guide={guide} node={node} />
+        </Disclosure>
+        <Disclosure title="Add a note" className="rounded-none border-0 border-t">
+          <NoteForm session={session} />
+        </Disclosure>
+      </div>
+
+      {session.active_path.length > 1 && (
+        <div className="border-t px-4 py-2">
           <Button
             variant="ghost"
             size="sm"
-            className="w-fit"
             disabled={step.isPending}
             onClick={() => step.mutate({ type: 'back' })}
           >
             <ArrowLeft aria-hidden="true" />
             Back to previous step
           </Button>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+    </Panel>
   )
 }
 
@@ -614,47 +662,62 @@ function PathCard({ session }: { session: TroubleshootingSession }) {
   const guide = session.guide
   const answers = session.steps.filter((s) => s.step_type === 'answer' && !s.superseded)
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Your path</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ol className="flex flex-col gap-2.5">
-          {session.active_path.map((id, i) => {
-            const node = guide.nodes.find((n) => n.id === id)
-            const answer = answers.find((a) => a.node_id === id)
-            const current = id === session.current_node_id
-            return (
-              <li key={`${id}-${i}`} className="flex gap-3 text-sm">
+    <Panel as="aside" className="lg:sticky lg:top-6">
+      <PanelHeader
+        title="Your path"
+        meta={`${session.active_path.length} step${session.active_path.length === 1 ? '' : 's'}`}
+      />
+      <ol className="flex flex-col px-4 py-4">
+        {session.active_path.map((id, i) => {
+          const node = guide.nodes.find((n) => n.id === id)
+          const answer = answers.find((a) => a.node_id === id)
+          const current = id === session.current_node_id
+          const last = i === session.active_path.length - 1
+          return (
+            <li key={`${id}-${i}`} className="relative flex gap-3 pb-4 last:pb-0">
+              {!last && (
+                <span
+                  className="absolute top-6 bottom-0 left-[9.5px] w-px bg-border"
+                  aria-hidden="true"
+                />
+              )}
+              <span
+                className={cn(
+                  'relative z-10 mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold',
+                  current
+                    ? 'bg-primary text-primary-foreground ring-4 ring-accent'
+                    : 'border bg-card text-muted-foreground',
+                )}
+              >
+                {i + 1}
+              </span>
+              <span className="min-w-0 text-sm">
                 <span
                   className={cn(
-                    'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-                    current
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground',
+                    'block leading-snug',
+                    current ? 'font-semibold text-foreground' : 'text-foreground/85',
                   )}
                 >
-                  {i + 1}
+                  {node?.title ?? 'Step'}
                 </span>
-                <span className="min-w-0">
-                  <span
-                    className={cn(
-                      'block',
-                      current ? 'font-semibold text-foreground' : 'text-foreground',
-                    )}
-                  >
-                    {node?.title ?? 'Step'}
+                {answer && (
+                  <span className="mt-0.5 block text-[13px] text-muted-foreground">
+                    Answered: {answer.answer_label}
                   </span>
-                  {answer && (
-                    <span className="block text-muted-foreground">→ {answer.answer_label}</span>
-                  )}
-                </span>
-              </li>
-            )
-          })}
-        </ol>
-      </CardContent>
-    </Card>
+                )}
+              </span>
+            </li>
+          )
+        })}
+      </ol>
+      <Disclosure
+        title="Session history"
+        count={session.steps.length}
+        className="rounded-none rounded-b-lg border-0 border-t"
+      >
+        <HistoryTimeline session={session} />
+      </Disclosure>
+    </Panel>
   )
 }
 
@@ -704,14 +767,5 @@ function SessionBadge({ status }: { status: TroubleshootingSession['status'] }) 
     resolved: ['Resolved', 'border-emerald-200 bg-emerald-50 text-emerald-800'],
     unresolved: ['Not resolved', 'border-red-200 bg-red-50 text-red-800'],
   }[status]
-  return (
-    <span
-      className={cn(
-        'rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
-        styles[1],
-      )}
-    >
-      {styles[0]}
-    </span>
-  )
+  return <span className={cn(tagClass, styles[1])}>{styles[0]}</span>
 }

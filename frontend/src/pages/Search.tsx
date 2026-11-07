@@ -19,13 +19,13 @@ import {
   ReviewBadge,
   SourceBadge,
 } from '@/components/common/StatusBadges'
+import { Insight } from '@/components/common/Insight'
 import { EmptyState, Notice, SectionTitle } from '@/components/common/States'
 import { groupHeadline } from '@/components/consolidation/labels'
 import { KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
 import { evidenceLabels, formatTime } from '@/components/discovery/labels'
 import { feedbackSentence } from '@/components/feedback/labels'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { useKnowledgeSearch } from '@/hooks/useSearch'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
@@ -245,9 +245,9 @@ export default function Search() {
               <Link
                 key={g.id}
                 to={`/knowledge?group=${g.id}`}
-                className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 hover:bg-sky-100"
+                className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2.5 text-sm text-foreground transition-colors duration-150 hover:bg-muted/50"
               >
-                <Network className="size-4 shrink-0" aria-hidden="true" />
+                <Network className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
                   <span className="font-medium">{groupHeadline(g)}</span>
                   {g.conflict_count > 0 && ', with conflicting reports'}
@@ -255,7 +255,10 @@ export default function Search() {
                 <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
               </Link>
             ))}
-            <ul className="flex flex-col gap-2" aria-label="Search results">
+            <ul
+              className="divide-y overflow-hidden rounded-lg border bg-card"
+              aria-label="Search results"
+            >
               {results.map((result) => (
                 <li key={result.id}>
                   <ResultRow
@@ -292,9 +295,9 @@ function ResultRow({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        'flex w-full flex-col gap-1.5 rounded-xl border bg-card px-4 py-3 text-left transition-colors',
+        'flex w-full cursor-pointer flex-col gap-1.5 px-4 py-3.5 text-left transition-colors duration-150',
         'focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
-        selected ? 'border-primary/60 ring-1 ring-primary/30' : 'hover:bg-muted/40',
+        selected ? 'bg-accent/70 shadow-[inset_3px_0_0_var(--primary)]' : 'hover:bg-muted/50',
       )}
     >
       <span className="flex items-start justify-between gap-2">
@@ -337,125 +340,126 @@ function ResultPanel({ result }: { result: SearchResult }) {
   const evidence = messages.filter((m) => !m.deleted_at_source).slice(0, 3)
   const problemParam = encodeURIComponent(result.problem_description)
   return (
-    <Card className="lg:sticky lg:top-24">
-      <CardContent className="flex flex-col gap-5">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <OutdatedBadge validTo={result.valid_to} />
-            <KnowledgeTypeBadge type={result.knowledge_type} />
+    <div className="flex flex-col gap-5 rounded-lg border bg-card p-5 lg:sticky lg:top-6">
+      <Insight
+        label={result.knowledge_type === 'site_access' ? 'Site access' : 'Discovered knowledge'}
+        badges={
+          <>
             <ResolutionBadge status={result.resolution_status} />
             <ReviewBadge status={result.approval_status} />
-          </div>
-          <h2 className="text-xl font-semibold text-foreground">{result.title}</h2>
-          <EntityChips links={result.entity_links} max={6} />
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link to={`/troubleshoot?problem=${problemParam}`}>
-                <Workflow aria-hidden="true" />
-                Start troubleshooting
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to={`/knowledge?item=${result.id}`}>
-                View details
-                <ArrowRight aria-hidden="true" />
-              </Link>
-            </Button>
-          </div>
+            <OutdatedBadge validTo={result.valid_to} />
+          </>
+        }
+        title={result.title}
+      >
+        <EntityChips links={result.entity_links} max={6} />
+        <div>
+          <p className="text-xs font-medium text-insight-foreground">
+            {result.resolution_status === 'confirmed_in_conversation'
+              ? 'Fix, confirmed in chat'
+              : 'Suggested fix'}
+          </p>
+          <p className="mt-0.5 text-[15px] leading-relaxed font-medium text-foreground">
+            {result.resolution ?? 'No fix recorded'}
+          </p>
         </div>
-
-        {result.superseded_by && (
-          <Notice tone="warning">
-            Outdated since {formatTime(result.valid_to)}. Replaced by{' '}
-            <Link
-              to={`/knowledge?item=${result.superseded_by.id}`}
-              className="font-medium underline"
-            >
-              {result.superseded_by.title}
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button asChild>
+            <Link to={`/troubleshoot?problem=${problemParam}`}>
+              <Workflow aria-hidden="true" />
+              Start troubleshooting
             </Link>
-            .
-          </Notice>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <SectionTitle>Problem</SectionTitle>
-            <p className="text-sm text-foreground">{result.problem_description}</p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <SectionTitle>
-              {result.resolution_status === 'confirmed_in_conversation'
-                ? 'Fix (confirmed in chat)'
-                : 'Suggested fix'}
-            </SectionTitle>
-            <p className="text-sm font-medium text-foreground">
-              {result.resolution ?? 'No fix recorded'}
-            </p>
-            {result.applicability_conditions.slice(0, 2).map((c) => (
-              <p key={c} className="text-sm text-muted-foreground">
-                · {c}
-              </p>
-            ))}
-          </div>
+          </Button>
+          <Button variant="outline" className="bg-card" asChild>
+            <Link to={`/knowledge?item=${result.id}`}>View details</Link>
+          </Button>
         </div>
+      </Insight>
 
-        {result.feedback && result.feedback.sessions > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <SectionTitle>Used since (self-reported)</SectionTitle>
-            <p className="text-sm text-foreground">{feedbackSentence(result.feedback)}</p>
-            {result.feedback.condition_notes.length > 0 && (
-              <p className="text-sm text-amber-900">
-                Differs by condition: {result.feedback.condition_notes.join('; ')}
-              </p>
-            )}
-          </div>
-        )}
+      {result.superseded_by && (
+        <Notice tone="warning">
+          Outdated since {formatTime(result.valid_to)}. Replaced by{' '}
+          <Link to={`/knowledge?item=${result.superseded_by.id}`} className="font-medium underline">
+            {result.superseded_by.title}
+          </Link>
+          .
+        </Notice>
+      )}
 
-        <div className="flex flex-col gap-2">
-          <SectionTitle>
-            Evidence ({messages.length} message{messages.length === 1 ? '' : 's'})
-          </SectionTitle>
-          {evidence.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No supporting messages. Use with caution.
-            </p>
-          ) : (
-            <ol className="flex flex-col gap-2">
-              {evidence.map((e) => (
-                <li key={e.message_id} className="rounded-lg bg-muted/50 px-3 py-2">
-                  <p className="mb-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{e.author}</span>
-                    <SourceBadge type={e.source_type} />
-                    <span>{formatTime(e.sent_at)}</span>
-                    <span>· {e.roles.map((r) => evidenceLabels[r]).join(', ')}</span>
-                  </p>
-                  <p className="line-clamp-3 text-sm whitespace-pre-wrap text-foreground">
-                    {e.excerpt}
-                  </p>
-                </li>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <SectionTitle>Problem</SectionTitle>
+          <p className="text-sm leading-relaxed text-foreground/85">{result.problem_description}</p>
+        </div>
+        {result.applicability_conditions.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <SectionTitle>When it applies</SectionTitle>
+            <ul className="flex flex-col gap-1 text-sm leading-relaxed text-foreground/85">
+              {result.applicability_conditions.slice(0, 3).map((c) => (
+                <li key={c}>{c}</li>
               ))}
-            </ol>
-          )}
-          {messages.length > evidence.length && (
-            <Link
-              to={`/knowledge?item=${result.id}`}
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              All evidence and details
-            </Link>
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {result.feedback && result.feedback.sessions > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <SectionTitle>Used since (self-reported)</SectionTitle>
+          <p className="text-sm text-foreground">{feedbackSentence(result.feedback)}</p>
+          {result.feedback.condition_notes.length > 0 && (
+            <p className="text-sm text-amber-900">
+              Differs by condition: {result.feedback.condition_notes.join('; ')}
+            </p>
           )}
         </div>
+      )}
 
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <History className="size-3.5 shrink-0" aria-hidden="true" />
-          Valid from {result.valid_from ? formatTime(result.valid_from) : 'unknown'}
-          {result.valid_to ? ` until ${formatTime(result.valid_to)}` : ', still believed true'} ·
-          matched by {result.ranking.matched_by.join(', ') || 'n/a'}
-          {result.ranking.matched_identifiers.length > 0 &&
-            ` (${result.ranking.matched_identifiers.join(', ')})`}
-        </p>
-      </CardContent>
-    </Card>
+      <div className="flex flex-col gap-2">
+        <SectionTitle>
+          Evidence ({messages.length} message{messages.length === 1 ? '' : 's'})
+        </SectionTitle>
+        {evidence.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No supporting messages. Use with caution.</p>
+        ) : (
+          <ol className="flex flex-col gap-2">
+            {evidence.map((e) => (
+              <li
+                key={e.message_id}
+                className="rounded-md border-l-2 border-insight-border bg-muted/40 px-3 py-2"
+              >
+                <p className="mb-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{e.author}</span>
+                  <SourceBadge type={e.source_type} />
+                  <span>{formatTime(e.sent_at)}</span>
+                  <span>· {e.roles.map((r) => evidenceLabels[r]).join(', ')}</span>
+                </p>
+                <p className="line-clamp-3 text-sm whitespace-pre-wrap text-foreground">
+                  {e.excerpt}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+        {messages.length > evidence.length && (
+          <Link
+            to={`/knowledge?item=${result.id}`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            All evidence and details
+          </Link>
+        )}
+      </div>
+
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <History className="size-3.5 shrink-0" aria-hidden="true" />
+        Valid from {result.valid_from ? formatTime(result.valid_from) : 'unknown'}
+        {result.valid_to ? ` until ${formatTime(result.valid_to)}` : ', still believed true'} ·
+        matched by {result.ranking.matched_by.join(', ') || 'n/a'}
+        {result.ranking.matched_identifiers.length > 0 &&
+          ` (${result.ranking.matched_identifiers.join(', ')})`}
+      </p>
+    </div>
   )
 }
 

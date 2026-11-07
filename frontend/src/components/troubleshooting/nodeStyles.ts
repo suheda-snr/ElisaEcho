@@ -55,19 +55,19 @@ export const nodeTypeStyle: Record<
 export const supportStyle: Record<SupportLevel, { label: string; className: string } | null> = {
   approved: {
     label: 'Expert-approved',
-    className: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+    className: 'bg-emerald-50 text-emerald-800',
   },
   confirmed_in_conversation: {
     label: 'Worked in chat · not approved',
-    className: 'border-blue-200 bg-blue-50 text-blue-800',
+    className: 'bg-blue-50 text-blue-800',
   },
   suggested: {
     label: 'Suggested · unverified',
-    className: 'border-slate-300 bg-slate-50 text-slate-700',
+    className: 'bg-slate-50 text-slate-700',
   },
   conflicting: {
     label: 'Conflicting evidence',
-    className: 'border-amber-300 bg-amber-50 text-amber-900',
+    className: 'bg-amber-50 text-amber-900',
   },
   none: null,
 }
