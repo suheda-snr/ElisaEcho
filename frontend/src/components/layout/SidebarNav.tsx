@@ -17,7 +17,7 @@ const GROUPS: { key: NavItem['group']; label: string | null }[] = [
 export function SidebarNav({ onNavigate }: SidebarNavProps) {
   return (
     <nav aria-label="Main navigation" className="flex flex-col gap-5">
-      {GROUPS.map((group) => (
+      {GROUPS.filter((group) => navItems.some((item) => item.group === group.key)).map((group) => (
         <div key={group.key} className="flex flex-col gap-1">
           {group.label && (
             <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">

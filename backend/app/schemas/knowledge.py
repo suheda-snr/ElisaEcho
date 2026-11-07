@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -36,6 +36,9 @@ class IncidentRead(ORMModel):
 
 class EvidenceRead(ORMModel):
     id: uuid.UUID
+    # Conversation messages. Troubleshooting feedback is a separate origin
+    # (GET /api/knowledge/{id}/feedback) and never appears here as a fake message.
+    origin: Literal["conversation"] = "conversation"
     evidence_type: EvidenceType
     explanation: str | None
     message: MessageRead

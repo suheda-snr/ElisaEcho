@@ -7,7 +7,15 @@ import type {
   SlackChannelList,
   SlackStatus,
   CompleteSessionRequest,
+  FeedbackCreate,
+  FeedbackInput,
+  FeedbackSaved,
+  FeedbackSummary,
   Guide,
+  GroupBrief,
+  GroupDetail,
+  KnowledgeRelationship,
+  RelatedKnowledge,
   SessionSummary,
   StepRequest,
   TroubleshootingSession,
@@ -23,6 +31,7 @@ import type {
   SearchResponse,
   SimulationCommandResult,
   ThreadDiscovery,
+  TroubleshootingFeedback,
 } from '@/types/api'
 
 /**
@@ -100,6 +109,73 @@ export async function getKnowledgeItems(): Promise<Page<KnowledgeItemSummary>> {
 
 export async function getKnowledgeItem(id: string): Promise<KnowledgeItemDetail> {
   const { data } = await api.get<KnowledgeItemDetail>(`/knowledge/${id}`)
+  return data
+}
+
+export async function getRelatedKnowledge(id: string): Promise<RelatedKnowledge> {
+  const { data } = await api.get<RelatedKnowledge>(`/knowledge/${id}/related`)
+  return data
+}
+
+export async function getKnowledgeGroups(): Promise<Page<GroupBrief>> {
+  const { data } = await api.get<Page<GroupBrief>>('/knowledge-groups', { params: { limit: 100 } })
+  return data
+}
+
+export async function getKnowledgeGroup(id: string): Promise<GroupDetail> {
+  const { data } = await api.get<GroupDetail>(`/knowledge-groups/${id}`)
+  return data
+}
+
+export async function getGroupRelationships(id: string): Promise<KnowledgeRelationship[]> {
+  const { data } = await api.get<KnowledgeRelationship[]>(`/knowledge-groups/${id}/relationships`)
+  return data
+}
+
+const tokenHeader = (token: string | null | undefined) =>
+  token ? { headers: { 'X-Feedback-Token': token } } : undefined
+
+export async function submitFeedback(
+  body: FeedbackCreate,
+  token?: string | null,
+): Promise<FeedbackSaved> {
+  const { data } = await api.post<FeedbackSaved>(
+    '/troubleshooting/feedback',
+    body,
+    tokenHeader(token),
+  )
+  return data
+}
+
+export async function correctFeedback(
+  id: string,
+  body: FeedbackInput,
+  token: string | null,
+): Promise<TroubleshootingFeedback> {
+  const { data } = await api.patch<TroubleshootingFeedback>(
+    `/troubleshooting/feedback/${id}`,
+    body,
+    tokenHeader(token),
+  )
+  return data
+}
+
+export async function getSessionFeedback(sessionId: string): Promise<TroubleshootingFeedback[]> {
+  const { data } = await api.get<TroubleshootingFeedback[]>(
+    `/troubleshooting/sessions/${sessionId}/feedback`,
+  )
+  return data
+}
+
+export async function getKnowledgeFeedback(id: string): Promise<Page<TroubleshootingFeedback>> {
+  const { data } = await api.get<Page<TroubleshootingFeedback>>(`/knowledge/${id}/feedback`, {
+    params: { limit: 100 },
+  })
+  return data
+}
+
+export async function getFeedbackSummary(id: string): Promise<FeedbackSummary> {
+  const { data } = await api.get<FeedbackSummary>(`/knowledge/${id}/feedback/summary`)
   return data
 }
 

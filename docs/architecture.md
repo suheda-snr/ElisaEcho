@@ -106,7 +106,13 @@ Each new knowledge item is connected to existing records:
 - **Other knowledge items** for the same problem, for example a second engineer's alternative fix
 - **Experts** who contributed or confirmed
 
-These links feed the Knowledge Graph and the contextual part of retrieval.
+Links to equipment and incidents are created during extraction. Links between knowledge items
+are created by **consolidation** (Phase 6B, `app/services/consolidation/`): after indexing, an
+item is compared by Gemini with a bounded set of candidates (embedding similarity + shared
+identifiers); the server validates evidence and condition values, stores one relationship per
+pair and forms groups only from items strongly related to every member. Group summaries list
+resolution paths with conditions, failed attempts, contradictions and missing information, and
+are never approved knowledge. See the README section "Knowledge consolidation".
 
 ### 3.6 Embed and store
 
@@ -128,6 +134,14 @@ When an engineer describes a new problem, retrieval combines three signals:
 3. **Context**: knowledge linked to the same equipment or related incidents
 
 Confirmed resolutions rank above unverified suggestions.
+
+### 3.7a Learn from reuse (Phase 6C)
+
+Engineers' troubleshooting outcomes are stored as `troubleshooting_feedback`, linked to the
+session, the guide step and the source knowledge item. It is a second evidence origin next to
+conversation messages, always self-reported, aggregated per session, and fed back into
+search (display only), new guides and knowledge group summaries. It never changes a
+knowledge item's resolution or approval status.
 
 ### 3.8 Recommend and guide
 
@@ -257,7 +271,8 @@ Ordinary chatter (like the "Friday lunch" demo thread) produces no candidate, or
 | `/capture` | Communication Sources / Live Discovery | Incoming conversations and the knowledge automatically identified in them |
 | `/search` | Search | Search automatically extracted operational knowledge |
 | `/troubleshoot` | Troubleshoot | Evidence-backed interactive decision trees |
-| `/graph` | Knowledge Graph | Relationships between incidents, equipment, conversations and resolutions |
+| `/knowledge` | Knowledge Base | Discovered knowledge, evidence and related knowledge |
+| `/network` | Knowledge Network | Groups of related incidents: resolution paths, conditions, conflicts |
 
 ## 8. Security and privacy
 

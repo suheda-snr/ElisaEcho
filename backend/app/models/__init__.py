@@ -9,6 +9,13 @@ from app.models.knowledge import (
     KnowledgeEvidence,
     KnowledgeItem,
 )
+from app.models.consolidation import (
+    KnowledgeConsolidationState,
+    KnowledgeGroup,
+    KnowledgeGroupMember,
+    KnowledgeRelationship,
+)
+from app.models.feedback import TroubleshootingFeedback
 from app.models.integrations import IntegrationEvent, IntegrationState
 from app.models.reference import Equipment, Incident
 from app.models.troubleshooting import (
@@ -32,12 +39,17 @@ __all__ = [
     "IntegrationState",
     "KnowledgeCandidate",
     "KnowledgeChunk",
+    "KnowledgeConsolidationState",
     "KnowledgeEvidence",
+    "KnowledgeGroup",
+    "KnowledgeGroupMember",
     "KnowledgeItem",
+    "KnowledgeRelationship",
     "Message",
     "NodeEvidence",
     "SessionStep",
     "TroubleshootingGuide",
+    "TroubleshootingFeedback",
     "TroubleshootingSession",
     "knowledge_item_equipment",
     "knowledge_item_incidents",

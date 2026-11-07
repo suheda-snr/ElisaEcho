@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useDiscoveryStatus, useKnowledgeItems } from '@/hooks/useDiscovery'
 import { useDatabaseHealth, useHealth } from '@/hooks/useHealth'
+import { useKnowledgeGroups } from '@/hooks/useConsolidation'
 import { useRecentSessions } from '@/hooks/useTroubleshooting'
 import { navItems } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const status = useDiscoveryStatus()
   const knowledge = useKnowledgeItems(false)
   const sessions = useRecentSessions()
+  const groups = useKnowledgeGroups()
   const metrics = status.data?.metrics ?? null
   const metricsProblem = status.isError ? getErrorMessage(status.error) : status.data?.metrics_error
 
@@ -38,6 +40,10 @@ export default function Dashboard() {
     '/knowledge': {
       value: metrics ? String(metrics.knowledge_items) : '–',
       caption: 'knowledge items with evidence',
+    },
+    '/network': {
+      value: groups.data ? String(groups.data.total) : '–',
+      caption: 'groups of related incidents',
     },
     '/search': {
       value: metrics ? String(metrics.confirmed_resolutions) : '–',
@@ -108,6 +114,8 @@ export default function Dashboard() {
           Metrics unavailable: {metricsProblem}
         </p>
       )}
+
+      <FeedbackCard metrics={metrics} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <OutcomesCard metrics={metrics} loading={status.isPending} className="lg:col-span-2" />
@@ -330,5 +338,46 @@ function SystemStatusCard() {
         </p>
       </CardContent>
     </Card>
+  )
+}
+
+/** Reuse and real-world feedback, all counted in the database (self-reported outcomes). */
+function FeedbackCard({ metrics }: { metrics: DiscoveryMetrics | null }) {
+  const tiles: { label: string; value: number | undefined; hint: string }[] = [
+    {
+      label: 'Knowledge items reused',
+      value: metrics?.knowledge_reused,
+      hint: 'in followed guides',
+    },
+    {
+      label: 'Sessions completed',
+      value: metrics?.sessions_completed,
+      hint: 'guided troubleshooting',
+    },
+    { label: 'Resolved reports', value: metrics?.feedback_resolved, hint: 'self-reported' },
+    { label: 'Not resolved reports', value: metrics?.feedback_not_resolved, hint: 'self-reported' },
+    {
+      label: 'Conflicting feedback',
+      value: metrics?.knowledge_with_conflicting_feedback,
+      hint: 'items with mixed outcomes',
+    },
+  ]
+  return (
+    <section aria-labelledby="feedback-metrics" className="flex flex-col gap-3">
+      <h2 id="feedback-metrics" className="text-sm font-semibold text-foreground">
+        Real-world validation
+      </h2>
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {tiles.map((t) => (
+          <div key={t.label} className="flex flex-col gap-0.5 rounded-xl border bg-card px-4 py-3">
+            <dt className="text-xs text-muted-foreground">{t.label}</dt>
+            <dd className="text-2xl font-semibold text-foreground tabular-nums">
+              {t.value ?? '–'}
+            </dd>
+            <dd className="text-xs text-muted-foreground">{t.hint}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
 }

@@ -25,7 +25,8 @@ class DemoMessage:
     sent_at: datetime
     content: str
     # Live feed only: deliver after the other conversations have finished and the analysis
-    # window has passed (the engineer goes off to try the suggested fix).
+    # window has passed (the engineer goes off to try the suggested fix, or the conversation
+    # happens later).
     deferred: bool = False
 
 
@@ -134,13 +135,32 @@ DEMO_THREADS: tuple[DemoThread, ...] = (
         messages=(
             _m("site17", 1, PETRI, _t(28, 9, 10),
                "Site 17 customers behind S17-RTR-02 drop every half hour, looks like the Site 42 "
-               "issue. I restarted the DHCP relay service like last time but the drops continue."),
+               "issue. S17-RTR-02 runs firmware 4.0. I restarted the DHCP relay service like last "
+               "time but the drops continue."),
             _m("site17", 2, LEENA, _t(28, 9, 18),
                "Then it is probably not the relay. Check the DHCP lease time on S17-RTR-02. After "
                "last week's config template push some routers got a 60 second lease."),
             _m("site17", 3, PETRI, _t(28, 9, 41),
                "Lease time was 60 seconds. Set it back to 24 hours and the drops stopped. "
                "Restarting the relay service alone did not help on this router."),
+        ),
+    ),
+    DemoThread(
+        external_id="demo-thread-site58-connectivity",
+        title="Customers losing sessions at Site 58",
+        # Independent confirmation of the Site 42 fix, with a stated firmware version
+        # (consolidation: supporting evidence vs. Site 17's different outcome on firmware 4.0).
+        scenario="supporting_evidence",
+        messages=(
+            _m("site58", 1, SANNA, _t(30, 14, 5),
+               "Site 58: customers behind S58-RTR-01 lose their sessions every 20 minutes or so. "
+               "The router is on firmware 3.2.", deferred=True),
+            _m("site58", 2, JARI, _t(30, 14, 12),
+               "Same router family as Site 42. Restart only the DHCP relay service, not the whole "
+               "router.", deferred=True),
+            _m("site58", 3, SANNA, _t(30, 15, 20),
+               "Restarted the DHCP relay service on S58-RTR-01. No drops for over an hour, fixed.",
+               deferred=True),
         ),
     ),
 )

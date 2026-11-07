@@ -33,8 +33,9 @@ async def wait_for(predicate, timeout: float = 2.0) -> None:
 def test_demo_messages_are_interleaved_across_threads() -> None:
     plan = interleaved_demo_messages()
     assert len(plan) == sum(len(t.messages) for t in DEMO_THREADS)
-    first_round = [t.external_id for t, _ in plan[: len(DEMO_THREADS)]]
-    assert first_round == [t.external_id for t in DEMO_THREADS]  # all threads progress together
+    live = [t for t in DEMO_THREADS if any(not m.deferred for m in t.messages)]
+    first_round = [t.external_id for t, _ in plan[: len(live)]]
+    assert first_round == [t.external_id for t in live]  # all live threads progress together
     for thread in DEMO_THREADS:  # order within each thread is preserved
         assert [m for t, m in plan if t is thread] == list(thread.messages)
     # The Site 42 confirmation arrives last, after the other conversations.
@@ -170,3 +171,43 @@ async def test_status_works_without_database(client: httpx.AsyncClient) -> None:
     assert body["metrics"] is None and body["metrics_error"] == "Database is not configured."
     assert body["analysis"]["gemini_configured"] is False
     assert "key" not in str(body["analysis"]).lower()
+
+
+async def test_new_knowledge_is_consolidated_after_indexing_and_failures_do_not_break_discovery() -> None:
+    from app.services.consolidation.service import ConsolidationConfig, ConsolidationOutcome
+    from app.services.retrieval.indexing import IndexOutcome
+
+    item_id, thread_id = uuid.uuid4(), uuid.uuid4()
+    calls: list[uuid.UUID] = []
+
+    async def fake_analyze(session, tid, gemini, force=False):
+        return AnalysisOutcome(thread_id=tid, status="analyzed", detection_status="accepted",
+                               knowledge_item_id=item_id, resolution_status="confirmed_in_conversation")
+
+    async def fake_index(session, iid, embedder):
+        return IndexOutcome(item_id=iid, status="indexed", chunks=1, embedded=1)
+
+    async def fake_consolidate(session, iid, gemini, config):
+        calls.append(iid)
+        return ConsolidationOutcome(iid, "done", compared=2, related=2, group_action="joined")
+
+    engine = make_engine(analyze=fake_analyze, index=fake_index, embedder_factory=lambda: object(),
+                         consolidation=ConsolidationConfig(), consolidate=fake_consolidate)
+    outcome = await engine.run_analysis(thread_id)
+    await engine.drain_consolidation()
+    assert outcome.status == "analyzed" and calls == [item_id]
+    assert any(e.kind == "consolidated" and "joined" in e.message for e in engine.events_after(0))
+
+    async def broken(session, iid, gemini, config):
+        raise RuntimeError("database down")
+
+    engine.consolidate = broken
+    assert (await engine.run_analysis(thread_id)).status == "analyzed"  # discovery unaffected
+    await engine.drain_consolidation()
+    assert engine.events_after(0)[-1].kind == "consolidation_pending"
+
+    disabled = make_engine(analyze=fake_analyze, index=fake_index, embedder_factory=lambda: object(),
+                           consolidate=fake_consolidate)
+    await disabled.run_analysis(thread_id)
+    await disabled.drain_consolidation()
+    assert calls == [item_id]  # consolidation=None disables it

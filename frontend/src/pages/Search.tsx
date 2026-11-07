@@ -4,9 +4,11 @@ import {
   CircleDashed,
   LoaderCircle,
   MessageSquareQuote,
+  Network,
   Search as SearchIcon,
   ShieldAlert,
   Sparkles,
+  Users,
   Workflow,
 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
@@ -18,6 +20,8 @@ import {
   outcomeLabels,
   resolutionLabels,
 } from '@/components/discovery/labels'
+import { groupHeadline } from '@/components/consolidation/labels'
+import { feedbackSentence } from '@/components/feedback/labels'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
 import type {
   ApprovalStatus,
+  GroupBrief,
   ResolutionStatus,
   SearchRanking,
   SearchRequest,
@@ -197,9 +202,26 @@ export default function Search() {
               {results.length} result{results.length === 1 ? '' : 's'} for “{data?.query}”
               {data?.retrieval.semantic === 'used' && ' · meaning + keywords + identifiers'}
             </p>
+            {data?.related_groups.map((g) => (
+              <Link
+                key={g.id}
+                to={`/network?group=${g.id}`}
+                className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 hover:bg-sky-100"
+              >
+                <Network className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>
+                  <span className="font-medium">{groupHeadline(g)}</span>
+                  {g.conflict_count > 0 && ', with conflicting reports'}
+                  <span className="block text-xs text-sky-900/80">
+                    {g.title} · open the grouped view in Knowledge Network
+                  </span>
+                </span>
+              </Link>
+            ))}
             {results.map((result, index) => (
               <ResultCard
                 key={result.id}
+                group={data?.related_groups.find((g) => g.id === result.group_id)}
                 result={result}
                 position={index + 1}
                 selected={result.id === selected?.id}
@@ -286,11 +308,13 @@ function relevance(ranking: SearchRanking): string[] {
 
 function ResultCard({
   result,
+  group,
   position,
   selected,
   onSelect,
 }: {
   result: SearchResult
+  group?: GroupBrief
   position: number
   selected: boolean
   onSelect: () => void
@@ -345,6 +369,23 @@ function ResultCard({
             : `${result.evidence.length} supporting message${result.evidence.length === 1 ? '' : 's'}`}
         </span>
         <span>{relevance(result.ranking).join(' · ')}</span>
+        {result.feedback && result.feedback.sessions > 0 && (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1',
+              result.feedback.has_conflicting_reports ? 'text-amber-800' : 'text-emerald-800',
+            )}
+          >
+            <Users className="size-3.5" aria-hidden="true" />
+            {feedbackSentence(result.feedback)}
+          </span>
+        )}
+        {group && (
+          <span className="inline-flex items-center gap-1 text-sky-800">
+            <Network className="size-3.5" aria-hidden="true" />
+            Part of a group of {group.case_count} related incidents
+          </span>
+        )}
       </div>
     </button>
   )
@@ -396,6 +437,30 @@ function ResultDetail({ result }: { result: SearchResult }) {
                 : 'This fix was suggested in a conversation but nobody confirmed that it worked.'}
             </span>
           </div>
+        )}
+
+        {result.feedback && result.feedback.sessions > 0 && (
+          <Section title="Real-world feedback (self-reported)">
+            <p className="text-sm text-foreground">{feedbackSentence(result.feedback)}</p>
+            {result.feedback.condition_notes.length > 0 && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <p className="font-medium">
+                  Not universally applicable: outcomes differ by condition
+                </p>
+                <ul className="list-disc pl-5">
+                  {result.feedback.condition_notes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <Link
+              to={`/knowledge?item=${result.id}#validation`}
+              className="text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              See the detailed feedback history
+            </Link>
+          </Section>
         )}
 
         <Section title="Problem">

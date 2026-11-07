@@ -81,7 +81,9 @@ def test_stable_identifiers_scope_threads_to_channel_and_workspace() -> None:
     assert ts_to_datetime("1700000000.000100").year == 2023
 
 
-def test_slack_settings_and_allowlist_parsing() -> None:
+def test_slack_settings_and_allowlist_parsing(monkeypatch) -> None:
+    for name in ("SLACK_ENABLED", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_CHANNEL_IDS"):
+        monkeypatch.delenv(name, raising=False)  # the container may have real tokens configured
     s = Settings(_env_file=None, slack_enabled=True, slack_bot_token="xoxb-test", slack_app_token="xapp-test",
                  slack_channel_ids="C0TEST01, C0TEST02,")
     assert s.slack_configured and s.slack_channel_ids == ["C0TEST01", "C0TEST02"]

@@ -146,13 +146,36 @@ knowledge and messages); per-user authorization.
 
 ---
 
-## Phase 6: Consolidation, expert feedback and demo polish
+## Phase 6B: Automatic knowledge consolidation (done)
+
+- After indexing, each item is compared (Gemini, validated) with a bounded set of candidates
+  from embeddings and shared identifiers; one relationship per pair, idempotent
+- Groups only when strongly related to every member (no transitive grouping); ambiguous items
+  stay ungrouped as suggestions; validated, unreviewed group summaries
+- Related-knowledge and knowledge-group APIs, Knowledge Network page, search group badges,
+  guides use group context; retry state and `consolidate_knowledge` CLI backfill
+- Migration 0005 (knowledge_groups, knowledge_group_members, knowledge_relationships,
+  knowledge_consolidation_state)
+
+---
+
+## Phase 6C: Knowledge validation and feedback loop (done)
+
+- Engineers report per recommendation whether they tried it and the outcome, with firmware,
+  equipment and notes; validated references, idempotent, corrections with audit history
+- Feedback is a separate evidence origin; never changes resolution or approval status
+- Aggregation per knowledge item (per session, by firmware/equipment); shown in Knowledge
+  Base, search, Dashboard; used by new guides and knowledge group summaries
+- Migration 0006 (troubleshooting_feedback)
+
+---
+
+## Phase 6: Expert feedback and demo polish
 
 **Goal:** make the knowledge base trustworthy over time and prepare the demo.
 
 **Scope**
 
-- Consolidate related knowledge from multiple experts into alternative troubleshooting paths
 - Expert review: approve, correct or reject extracted knowledge
 - End-to-end demo script with synthetic data
 - UI polish, empty states, error handling and performance checks

@@ -32,6 +32,12 @@ from app.seed.demo_data import (
     DemoThread,
     demo_message_url,
 )
+from app.services.consolidation.service import (
+    ConsolidationConfig,
+    ConsolidationOutcome,
+    consolidate_item,
+    refresh_group_for_item,
+)
 from app.services.discovery.analyzer import AnalysisOutcome, analyze_thread
 from app.services.ingestion import upsert_messages, upsert_source, upsert_thread
 from app.services.retrieval.indexing import IndexOutcome, index_item
@@ -43,6 +49,7 @@ EventKind = Literal[
     "simulation_started", "simulation_stopped", "simulation_finished", "message_received",
     "duplicate_skipped", "analysis_scheduled", "analysis_started", "analysis_completed",
     "analysis_skipped", "analysis_failed", "demo_reset", "error", "indexed", "index_pending",
+    "consolidated", "consolidation_pending",
 ]
 
 
@@ -89,6 +96,10 @@ class DiscoveryEngine:
     # Search indexing after knowledge changes (Phase 4). None disables it.
     embedder_factory: Callable[[], EmbeddingService] | None = None
     index: Callable[..., Awaitable[IndexOutcome]] = index_item
+    # Knowledge consolidation after indexing (Phase 6B). None disables it.
+    consolidation: ConsolidationConfig | None = None
+    consolidate: Callable[..., Awaitable[ConsolidationOutcome]] = consolidate_item
+    refresh_group: Callable[..., Awaitable[str]] = refresh_group_for_item
 
     simulation: SimulationState = field(default_factory=SimulationState)
     _events: deque[DiscoveryEvent] = field(default_factory=lambda: deque(maxlen=300))
@@ -100,6 +111,8 @@ class DiscoveryEngine:
     _titles: dict[uuid.UUID, str | None] = field(default_factory=dict)
     _sim_task: asyncio.Task | None = None
     _semaphore: asyncio.Semaphore | None = None
+    _consolidation_tasks: set[asyncio.Task] = field(default_factory=set)
+    _consolidation_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     # While Gemini quota is exhausted, analyses are deferred instead of burning requests.
     gemini_paused_until: datetime | None = None
     gemini_pause_reason: str | None = None
@@ -216,9 +229,74 @@ class DiscoveryEngine:
         if result.status == "indexed":
             self.emit("indexed", f"Embedded for semantic search ({result.embedded} chunk(s))",
                       thread_id=thread_id, level="success")
+            self._schedule_consolidation(thread_id, item_id)
         elif result.status == "pending":
             self.emit("index_pending", f"Saved; embedding pending: {result.error or 'retry later'}",
                       thread_id=thread_id, level="warning")
+
+    def _schedule_consolidation(self, thread_id: uuid.UUID, item_id: uuid.UUID) -> None:
+        """Compare the new knowledge with related items in the background (it needs several
+        Gemini calls); runs are serialized. Items that fail are retried by the backfill."""
+        if self.consolidation is None:
+            return
+        task = asyncio.create_task(self._consolidate(thread_id, item_id))
+        self._consolidation_tasks.add(task)
+        task.add_done_callback(self._consolidation_tasks.discard)
+
+    async def _consolidate(self, thread_id: uuid.UUID, item_id: uuid.UUID) -> None:
+        async with self._consolidation_lock:
+            if self.gemini_paused:
+                self.emit("consolidation_pending", "Related-knowledge check deferred (Gemini paused)",
+                          thread_id=thread_id, level="warning")
+                return
+            try:
+                async with self.session_factory() as session:
+                    result = await self.consolidate(session, item_id, self.gemini_factory(), self.consolidation)
+            except Exception as exc:  # noqa: BLE001 - consolidation must never break discovery
+                logger.exception("Consolidation failed for knowledge item %s", item_id)
+                self.emit("consolidation_pending", f"Related-knowledge check failed ({type(exc).__name__}); "
+                          "will retry later", thread_id=thread_id, level="warning")
+                return
+        if result.status == "done" or (result.status == "retry" and result.compared):
+            parts = [f"{result.related} related item(s)"]
+            if result.group_action in ("created", "joined"):
+                parts.append(f"{result.group_action} a knowledge group")
+            elif result.group_action == "ambiguous":
+                parts.append("left ungrouped (ambiguous)")
+            self.emit("consolidated", "Related knowledge checked: " + ", ".join(parts),
+                      thread_id=thread_id, level="success")
+        if result.status == "retry":
+            self.emit("consolidation_pending", f"Related-knowledge check incomplete: {result.error or 'retry later'}",
+                      thread_id=thread_id, level="warning")
+
+    def schedule_feedback_refresh(self, item_id: uuid.UUID) -> None:
+        """New troubleshooting feedback: refresh the summary of the item's knowledge group in
+        the background. The feedback itself is already saved; failures only leave the summary
+        marked as outdated (refreshed by the next feedback or consolidation run)."""
+        if self.consolidation is None:
+            return
+        task = asyncio.create_task(self._refresh_group(item_id))
+        self._consolidation_tasks.add(task)
+        task.add_done_callback(self._consolidation_tasks.discard)
+
+    async def _refresh_group(self, item_id: uuid.UUID) -> None:
+        async with self._consolidation_lock:
+            if self.gemini_paused:
+                return
+            try:
+                async with self.session_factory() as session:
+                    result = await self.refresh_group(session, item_id, self.gemini_factory(), self.consolidation)
+            except Exception:  # noqa: BLE001 - never affects saved feedback
+                logger.exception("Group refresh after feedback failed for knowledge item %s", item_id)
+                return
+        if result == "refreshed":
+            self.emit("consolidated", "Knowledge group summary updated with new troubleshooting feedback",
+                      level="success")
+
+    async def drain_consolidation(self) -> None:
+        """Wait for background consolidation (tests, shutdown)."""
+        while self._consolidation_tasks:
+            await asyncio.gather(*list(self._consolidation_tasks), return_exceptions=True)
 
     def _report(self, outcome: AnalysisOutcome) -> None:
         tid = outcome.thread_id
@@ -361,6 +439,8 @@ class DiscoveryEngine:
     async def shutdown(self) -> None:
         await self.stop_simulation()
         await self.cancel_pending()
+        for task in list(self._consolidation_tasks):
+            task.cancel()
 
 
 async def thread_title(session: AsyncSession, thread_id: uuid.UUID) -> str | None:

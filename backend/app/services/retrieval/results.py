@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import ConversationThread, KnowledgeEvidence, KnowledgeItem, Message
 from app.schemas.search import EvidenceReference, Ranking, SearchResult
+from app.services.feedback.summary import feedback_summaries
 from app.services.retrieval.search import RankedItem
 
 MAX_EXCERPT_CHARS = 600
@@ -54,6 +55,8 @@ async def build_results(session: AsyncSession, ranked: list[RankedItem]) -> list
         )
     }
 
+    # Display only: the ranking above is final and does not depend on feedback counts.
+    feedback = await feedback_summaries(session, list(items))
     results = []
     for entry in ranked:
         item = items.get(entry.item_id)
@@ -94,6 +97,7 @@ async def build_results(session: AsyncSession, ranked: list[RankedItem]) -> list
                 for e in evidence
             ],
             ranking=_ranking(entry),
+            feedback=feedback.get(item.id),
             updated_at=item.updated_at,
         ))
     return results

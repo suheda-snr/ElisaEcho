@@ -5,9 +5,19 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import CommunicationSource, ConversationThread, KnowledgeCandidate, KnowledgeItem, Message
-from app.models.enums import DetectionStatus, ResolutionStatus, ThreadProcessingStatus
+from app.models import (
+    CommunicationSource,
+    ConversationThread,
+    KnowledgeCandidate,
+    KnowledgeItem,
+    Message,
+    TroubleshootingFeedback,
+    TroubleshootingGuide,
+    TroubleshootingSession,
+)
+from app.models.enums import DetectionStatus, ResolutionStatus, SessionStatus, ThreadProcessingStatus
 from app.schemas.discovery import CandidateSummary, DiscoveryMetrics, ThreadDiscovery
+from app.services.feedback.summary import feedback_summaries
 from app.services.threads import list_threads
 
 
@@ -36,6 +46,15 @@ async def discovery_metrics(session: AsyncSession) -> DiscoveryMetrics:
             ).select_from(KnowledgeCandidate)
         )
     ).one()
+    # Knowledge reused: sources of guides that at least one session followed.
+    reused: set[str] = set()
+    for ids in await session.scalars(
+        select(TroubleshootingGuide.source_knowledge_ids).where(
+            TroubleshootingGuide.id.in_(select(TroubleshootingSession.guide_id)))
+    ):
+        reused.update(str(i) for i in ids or [])
+    feedback = await feedback_summaries(session, await session.scalars(
+        select(TroubleshootingFeedback.knowledge_item_id).distinct()))
     return DiscoveryMetrics(
         messages_processed=await count(select(func.count()).select_from(Message)),
         threads_total=row[0],
@@ -53,6 +72,14 @@ async def discovery_metrics(session: AsyncSession) -> DiscoveryMetrics:
             select(func.count()).select_from(KnowledgeItem).where(
                 KnowledgeItem.resolution_status == ResolutionStatus.SUGGESTED)
         ),
+        knowledge_reused=len(reused),
+        sessions_completed=await count(
+            select(func.count()).select_from(TroubleshootingSession).where(
+                TroubleshootingSession.status != SessionStatus.IN_PROGRESS)
+        ),
+        feedback_resolved=sum(s.counts.resolved for s in feedback.values()),
+        feedback_not_resolved=sum(s.counts.not_resolved for s in feedback.values()),
+        knowledge_with_conflicting_feedback=sum(s.has_conflicting_reports for s in feedback.values()),
     )
 
 

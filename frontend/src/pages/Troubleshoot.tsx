@@ -13,6 +13,7 @@ import { type FormEvent, type ReactNode, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { formatTime } from '@/components/discovery/labels'
+import { RecommendationFeedback } from '@/components/feedback/RecommendationFeedback'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Tabs } from '@/components/Tabs'
 import { EvidencePanel } from '@/components/troubleshooting/EvidencePanel'
@@ -355,6 +356,7 @@ function Workspace({
       <div className="grid gap-6 xl:grid-cols-12">
         <div className="flex flex-col gap-6 xl:col-span-3">
           <CurrentStep session={session} onSelect={onSelect} />
+          <RecommendationFeedback session={session} />
           <NotesAndOutcome session={session} />
         </div>
         <Card className="xl:col-span-6">
@@ -445,7 +447,8 @@ function CurrentStep({
         )}
         {open && atEnd && (
           <p className="text-sm text-muted-foreground">
-            End of the guide. Record the outcome in “Finish”.
+            End of the guide. Report whether the recommendation worked in “Did it work?”, then
+            record the session outcome in “Finish”.
           </p>
         )}
         {open && session.active_path.length > 1 && (

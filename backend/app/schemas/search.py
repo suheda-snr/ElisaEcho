@@ -5,6 +5,8 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, StringConstraints
 
 from app.models.enums import ApprovalStatus, EvidenceType, ResolutionStatus, SourceType
+from app.schemas.consolidation import GroupBrief
+from app.schemas.feedback import FeedbackSummary
 
 OptionalIdentifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)] | None
 
@@ -72,6 +74,10 @@ class SearchResult(BaseModel):
     evidence: list[EvidenceReference]
     ranking: Ranking
     updated_at: datetime
+    # The knowledge group this item belongs to (AI-suggested, unreviewed), if any.
+    group_id: uuid.UUID | None = None
+    # Engineers' troubleshooting feedback (self-reported). Shown only; never used for ranking.
+    feedback: FeedbackSummary | None = None
 
 
 class RetrievalInfo(BaseModel):
@@ -86,5 +92,7 @@ class SearchResponse(BaseModel):
     query: str
     results: list[SearchResult]
     retrieval: RetrievalInfo
+    # Groups of related incidents behind the results; individual results are still listed.
+    related_groups: list[GroupBrief] = []
     # The demo has no per-user authorization; only the source "enabled" flag is enforced.
     access_note: str = "Demo: synthetic data only. Per-user source permissions are not implemented."

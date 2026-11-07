@@ -25,6 +25,7 @@ from app.models import (
 )
 from app.seed.demo_data import DEMO_SOURCE_EXTERNAL_ID, DEMO_SOURCE_TYPE
 from app.seed.seed import SeedNotAllowedError, ensure_seed_allowed
+from app.services.consolidation.service import prune_small_groups
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,8 @@ async def reset_demo_data(session: AsyncSession, settings: Settings) -> ResetSum
     candidates = await session.execute(delete(KnowledgeCandidate).where(KnowledgeCandidate.id.in_(demo_candidates)))
     messages = await session.execute(delete(Message).where(Message.thread_id.in_(demo_threads)))
     threads = await session.execute(delete(ConversationThread).where(ConversationThread.id.in_(demo_threads)))
+    # Relationships/memberships of the removed items cascade; drop groups left with < 2 cases.
+    await prune_small_groups(session)
 
     return ResetSummary(
         guides=guides.rowcount,

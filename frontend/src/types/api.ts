@@ -35,6 +35,11 @@ export interface DiscoveryMetrics {
   knowledge_items: number
   confirmed_resolutions: number
   unverified_suggestions: number
+  knowledge_reused: number
+  sessions_completed: number
+  feedback_resolved: number
+  feedback_not_resolved: number
+  knowledge_with_conflicting_feedback: number
 }
 
 export interface SimulationStatus {
@@ -238,6 +243,10 @@ export interface SearchResult {
   evidence: EvidenceReference[]
   ranking: SearchRanking
   updated_at: string
+  /** Knowledge group (related incidents) this result belongs to, if any. */
+  group_id: string | null
+  /** Self-reported troubleshooting feedback; display only, never used for ranking. */
+  feedback: FeedbackSummary | null
 }
 
 export interface SearchResponse {
@@ -251,6 +260,187 @@ export interface SearchResponse {
     embedding_model: string | null
   }
   access_note: string
+  /** Groups of related incidents behind the results (individual results stay listed). */
+  related_groups: GroupBrief[]
+}
+
+// ---- knowledge consolidation (related knowledge and groups) ------------------------------
+
+export type RelationshipType =
+  | 'same_problem'
+  | 'supporting_evidence'
+  | 'same_problem_different_conditions'
+  | 'different_outcome'
+  | 'potentially_conflicting'
+  | 'related_symptoms'
+  | 'unrelated'
+
+export interface CaseRef {
+  id: string
+  title: string
+  resolution_status: ResolutionStatus
+  approval_status: ApprovalStatus
+  conversation: string | null
+  source_name: string | null
+  thread_id: string | null
+}
+
+export interface RelationshipEvidence {
+  message_id: string
+  author: string
+  sent_at: string
+  excerpt: string
+  source_url: string | null
+}
+
+export interface ConditionDifference {
+  field: string
+  /** null = not stated in that conversation (unknown, never assumed equal). */
+  source_value: string | null
+  target_value: string | null
+}
+
+export interface KnowledgeRelationship {
+  id: string
+  relationship_type: RelationshipType
+  outcome_comparison: 'same_outcome' | 'different_outcome' | 'not_comparable' | null
+  explanation: string | null
+  source: CaseRef
+  target: CaseRef
+  shared_symptoms: string[]
+  shared_equipment: string[]
+  conditions: ConditionDifference[]
+  unknown_conditions: string[]
+  source_evidence: RelationshipEvidence[]
+  target_evidence: RelationshipEvidence[]
+  validation_notes: string[]
+  model_name: string | null
+  updated_at: string
+}
+
+export interface GroupBrief {
+  id: string
+  title: string
+  summary: string | null
+  case_count: number
+  independent_conversations: number
+  solution_count: number
+  successful_paths: number
+  conflict_count: number
+  summary_pending: boolean
+  review_status: 'unreviewed'
+  updated_at: string
+}
+
+export interface SolutionPath {
+  description: string
+  outcome: 'successful' | 'unsuccessful' | 'mixed' | 'unknown'
+  conditions: string[]
+  knowledge_ids: string[]
+}
+
+export interface GroupMember extends CaseRef {
+  problem_description: string
+  resolution: string | null
+  equipment: string[]
+  applicability_conditions: string[]
+  evidence_count: number
+}
+
+export interface GroupDetail extends GroupBrief {
+  shared_problem: string | null
+  shared_symptoms: string[]
+  known_environment: string[]
+  solutions: SolutionPath[]
+  failed_attempts: string[]
+  contradictions: string[]
+  missing_information: string[]
+  summary_model: string | null
+  generated_at: string | null
+  members: GroupMember[]
+}
+
+export interface RelatedKnowledge {
+  knowledge_id: string
+  group: GroupBrief | null
+  relationships: KnowledgeRelationship[]
+}
+
+// ---- troubleshooting feedback (real-world validation) -----------------------------------
+
+export type FeedbackOutcome =
+  'resolved' | 'not_resolved' | 'partially_resolved' | 'unknown' | 'not_attempted'
+
+export interface FeedbackInput {
+  attempted: boolean
+  outcome?: Exclude<FeedbackOutcome, 'not_attempted'>
+  equipment_identifier?: string
+  firmware_version?: string
+  environment_details?: Record<string, string>
+  engineer_notes?: string
+}
+
+export interface FeedbackCreate extends FeedbackInput {
+  troubleshooting_session_id: string
+  guide_node_id: string
+  knowledge_item_id: string
+}
+
+export interface TroubleshootingFeedback {
+  id: string
+  origin: 'troubleshooting_feedback'
+  troubleshooting_session_id: string
+  guide_node_id: string
+  recommendation: string
+  knowledge_item_id: string
+  knowledge_title: string
+  attempted: boolean
+  outcome: FeedbackOutcome
+  equipment_identifier: string | null
+  firmware_version: string | null
+  environment_details: Record<string, string> | null
+  engineer_notes: string | null
+  verification_status: 'self_reported' | 'independently_verified'
+  relation_to_original:
+    'supports' | 'contradicts' | 'mixed' | 'new_evidence' | 'no_attempt' | 'inconclusive'
+  submitted_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface FeedbackSaved extends TroubleshootingFeedback {
+  created: boolean
+  /** Only on creation; required to correct the feedback later. */
+  edit_token: string | null
+}
+
+export interface OutcomeCounts {
+  resolved: number
+  not_resolved: number
+  partially_resolved: number
+  unknown: number
+  not_attempted: number
+}
+
+export interface ConditionBreakdown {
+  value: string | null
+  counts: OutcomeCounts
+}
+
+export interface FeedbackSummary {
+  knowledge_item_id: string
+  sessions: number
+  attempts: number
+  counts: OutcomeCounts
+  independently_verified: number
+  has_conflicting_reports: boolean
+  success_rate: number | null
+  min_sample_for_rate: number
+  by_firmware: ConditionBreakdown[]
+  by_equipment: ConditionBreakdown[]
+  condition_notes: string[]
+  last_reported_at: string | null
+  note: string
 }
 
 // ---- guided troubleshooting --------------------------------------------------------------

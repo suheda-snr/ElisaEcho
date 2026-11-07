@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     # Candidates fetched per retriever before rank fusion.
     search_candidate_pool: int = 20
 
+    # Knowledge consolidation (Phase 6B). After an item is embedded it is compared with at most
+    # `candidate_limit` nominated items (embedding similarity >= min_similarity, or a shared
+    # equipment identifier); Gemini then decides the relationship. Never all-pairs.
+    consolidation_enabled: bool = True
+    consolidation_candidate_limit: int = 6
+    consolidation_min_similarity: float = 0.6
+    consolidation_max_group_size: int = 12
+
     # Discovery pipeline (in-process, development MVP).
     # Wait this long after the last message in a thread before analyzing it, so a
     # burst of messages becomes one Gemini call. Keep it above the per-thread message

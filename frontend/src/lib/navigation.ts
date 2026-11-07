@@ -46,12 +46,21 @@ export const navItems: NavItem[] = [
     step: 2,
   },
   {
+    to: '/network',
+    label: 'Knowledge Network',
+    description:
+      'Related incidents grouped automatically: which fixes worked under which conditions, and where reports disagree.',
+    icon: Network,
+    group: 'workflow',
+    step: 3,
+  },
+  {
     to: '/search',
     label: 'Search',
     description: 'Describe a problem in your own words and find how colleagues solved it.',
     icon: Search,
     group: 'workflow',
-    step: 3,
+    step: 4,
   },
   {
     to: '/troubleshoot',
@@ -59,7 +68,7 @@ export const navItems: NavItem[] = [
     description: 'A step-by-step decision tree built only from evidence, saved as a session.',
     icon: Workflow,
     group: 'workflow',
-    step: 4,
+    step: 5,
   },
   {
     to: '/integrations',
@@ -68,13 +77,6 @@ export const navItems: NavItem[] = [
       'Connect authorized Slack channels so knowledge is discovered from real conversations.',
     icon: Cable,
     group: 'setup',
-  },
-  {
-    to: '/graph',
-    label: 'Knowledge Graph',
-    description: 'Relationships between equipment, incidents and experts.',
-    icon: Network,
-    group: 'planned',
   },
 ]
 

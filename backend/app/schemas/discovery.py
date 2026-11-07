@@ -24,6 +24,12 @@ class DiscoveryMetrics(BaseModel):
     knowledge_items: int
     confirmed_resolutions: int
     unverified_suggestions: int
+    # Reuse and real-world feedback (Phase 6C), all from the database.
+    knowledge_reused: int = 0  # knowledge items used by guides that engineers followed
+    sessions_completed: int = 0
+    feedback_resolved: int = 0  # self-reported, one per session and knowledge item
+    feedback_not_resolved: int = 0
+    knowledge_with_conflicting_feedback: int = 0
 
 
 class SimulationStatus(BaseModel):

@@ -216,6 +216,13 @@ async def test_slack_conversation_becomes_searchable_evidence_backed_knowledge(d
 
 # ---- API -----------------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _no_real_slack_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The dev container may have real Slack credentials; tests must never use them."""
+    for name in ("SLACK_ENABLED", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_SIGNING_SECRET", "SLACK_CHANNEL_IDS"):
+        monkeypatch.delenv(name, raising=False)
+
+
 def configured() -> Settings:
     return Settings(_env_file=None, environment="test", slack_enabled=True,
                     slack_bot_token="xoxb-secret-test", slack_app_token="xapp-secret-test")

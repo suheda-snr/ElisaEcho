@@ -81,6 +81,7 @@ def test_demo_data_covers_required_scenarios() -> None:
         "unresolved_problem",
         "multiple_suggested_fixes",
         "alternative_fix",
+        "supporting_evidence",
     }
     site42 = next(t for t in demo_data.DEMO_THREADS if t.scenario == "confirmed_resolution")
     assert site42.title == "Intermittent connectivity at Site 42"

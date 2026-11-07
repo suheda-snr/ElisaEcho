@@ -22,7 +22,9 @@ const router = createBrowserRouter([
       { path: 'capture', element: <Navigate to="/discovery" replace /> },
       { path: 'search', lazy: page(() => import('@/pages/Search')) },
       { path: 'troubleshoot', lazy: page(() => import('@/pages/Troubleshoot')) },
-      { path: 'graph', lazy: page(() => import('@/pages/KnowledgeGraph')) },
+      { path: 'network', lazy: page(() => import('@/pages/KnowledgeNetwork')) },
+      // The placeholder Knowledge Graph page became the Knowledge Network.
+      { path: 'graph', element: <Navigate to="/network" replace /> },
       { path: '*', lazy: page(() => import('@/pages/NotFound')) },
     ],
   },

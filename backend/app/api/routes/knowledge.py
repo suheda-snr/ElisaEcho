@@ -5,8 +5,10 @@ from fastapi import APIRouter, HTTPException, status
 from app.api.deps import DbSession, PaginationDep
 from app.models.enums import ApprovalStatus, ResolutionStatus
 from app.schemas.common import Page
+from app.schemas.consolidation import RelatedKnowledge
 from app.schemas.knowledge import KnowledgeItemDetail, KnowledgeItemSummary
 from app.services import knowledge as service
+from app.services.consolidation import queries as consolidation
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -46,3 +48,16 @@ async def get_knowledge(item_id: uuid.UUID, session: DbSession) -> KnowledgeItem
     detail = KnowledgeItemDetail.model_validate(item)
     detail.discovery = service.discovery_info(item)
     return detail
+
+
+@router.get(
+    "/{item_id}/related",
+    response_model=RelatedKnowledge,
+    summary="Related knowledge (AI-suggested relationships and group) for an item",
+    responses={404: {"description": "Knowledge item not found or not visible"}},
+)
+async def get_related_knowledge(item_id: uuid.UUID, session: DbSession) -> RelatedKnowledge:
+    related = await consolidation.related_knowledge(session, item_id)
+    if related is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge item not found.")
+    return related

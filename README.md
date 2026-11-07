@@ -43,7 +43,8 @@ Full design: [docs/architecture.md](docs/architecture.md).
 | `/discovery`    | Live Discovery                         | Incoming conversations and the knowledge automatically found in them |
 | `/search`       | Search Knowledge                       | Hybrid semantic + keyword search with supporting messages            |
 | `/troubleshoot` | Guided Troubleshooting                 | Interactive evidence-backed decision trees with saved sessions        |
-| `/graph`        | Knowledge Graph                        | Incidents, equipment, conversations and resolutions                  |
+| `/knowledge`    | Knowledge Base                         | Discovered knowledge with evidence and related knowledge             |
+| `/network`      | Knowledge Network                      | Related incidents grouped automatically: paths, conditions, conflicts |
 
 ## Tech stack
 
@@ -267,6 +268,12 @@ curl "http://localhost:8000/api/threads?limit=10"
 | GET    | `/api/threads/{id}/messages`  | Messages in original order                            |
 | GET    | `/api/knowledge`              | List knowledge items (`resolution_status`, `approval_status` filters) |
 | GET    | `/api/knowledge/{id}`         | Knowledge item with evidence messages, equipment, incidents and discovery details |
+| GET    | `/api/knowledge/{id}/related` | AI-assessed relationships of an item and its knowledge group |
+| GET    | `/api/knowledge-groups`, `/{id}`, `/{id}/relationships` | Groups of related cases: summary, cases, pairwise comparisons |
+| POST   | `/api/troubleshooting/feedback` | Report whether a recommendation was attempted and its outcome |
+| PATCH  | `/api/troubleshooting/feedback/{id}` | Correct own feedback (`X-Feedback-Token` from the submission) |
+| GET    | `/api/troubleshooting/sessions/{id}/feedback` | Feedback given in a session |
+| GET    | `/api/knowledge/{id}/feedback`, `/feedback/summary` | Feedback records / aggregated outcomes for a knowledge item |
 | POST   | `/api/guides/generate`        | Evidence-backed troubleshooting guide for a problem (or `insufficient_evidence`) |
 | GET    | `/api/guides`, `/api/guides/{id}` | Recent guides / one guide with steps, evidence and sources |
 | POST   | `/api/troubleshooting/sessions` | Start a session for a guide                         |
@@ -640,6 +647,111 @@ API: `GET /api/integrations/slack/status`, `/health` (live token check), `/chann
 - After backend code changes, recreate the worker (`--force-recreate slack-worker`); it does not
   hot-reload.
 
+## Knowledge consolidation (related incidents)
+
+Engineers often solve the same problem in separate conversations, sometimes with different
+results under different conditions. After a knowledge item is saved and embedded, Elisa Echo
+compares it with a few similar items and groups those that describe the same problem. Original
+items are never modified or merged.
+
+### How it works
+
+1. **Candidates (bounded, never all-pairs):** cosine similarity of the item's stored embedding
+   (at least `CONSOLIDATION_MIN_SIMILARITY`) plus items sharing an equipment identifier, at most
+   `CONSOLIDATION_CANDIDATE_LIMIT`. Only knowledge from enabled sources that an expert has not
+   rejected takes part.
+2. **Pair comparison (Gemini, Pydantic-validated):** `same_problem`, `supporting_evidence`,
+   `same_problem_different_conditions`, `different_outcome`, `potentially_conflicting`,
+   `related_symptoms` or `unrelated`, with shared symptoms/equipment, condition differences,
+   unknown conditions and cited messages (labels A1/B2, mapped back by the server).
+3. **Validation:** evidence must belong to the right case; condition values (firmware, models,
+   ...) must literally appear in that case's messages, otherwise they become *unknown* (never
+   assumed equal); grouping-strength relationships without evidence on both sides are
+   downgraded to `related_symptoms`.
+4. **Groups:** an item joins a group only if it is strongly related to **every** member (no
+   transitive grouping: A~B and B~C do not put A and C together). Items that fit two groups, or
+   do not fit the group of a related item, stay ungrouped; their relationships are still shown
+   as suggestions. Relationships are stored once per pair (`source < target`, unique) and are
+   re-compared only when either item changed (content fingerprint).
+5. **Group summary (Gemini, validated):** shared problem, environment, distinct resolution paths
+   with their conditions and cases, failed attempts, contradictions and missing information.
+   The number of independent conversations is counted by the server. Summaries are always
+   `unreviewed`, never approved knowledge.
+6. **Use:** Knowledge Base shows *Related knowledge*; the **Knowledge Network** page shows each
+   group; search results show the group ("3 related incidents, 2 distinct resolution paths");
+   guide generation adds the other group members and their relationships, so the decision tree
+   only branches on conditions the cases report and asks for unknown ones.
+
+Consolidation runs in the background after indexing (API process and Slack worker); failures
+never block discovery. If Gemini is unavailable the knowledge stays saved and the item is marked
+for retry. Process pending items with the CLI (there is no HTTP endpoint because the API has no
+admin authentication):
+
+```bash
+docker compose exec backend python -m app.scripts.consolidate_knowledge --dry-run   # report only
+docker compose exec backend python -m app.scripts.consolidate_knowledge             # up to 20 items
+docker compose exec backend python -m app.scripts.consolidate_knowledge --force     # re-compare all
+```
+
+It never deletes knowledge or messages; it only removes group memberships of knowledge from
+disabled sources or rejected by an expert.
+
+### Limitations
+
+- Similarity only nominates candidates; relationship quality depends on Gemini. Every result is
+  a suggestion for expert review.
+- One global advisory lock serializes consolidation (fine for the MVP, not for high volume).
+- Access control is limited to the source `enabled` flag; there are no per-user permissions.
+- Items left incomplete (Gemini failure, per-run comparison budget, embedding pending) are
+  finished by the CLI or by the next change to the item; there is no automatic scheduler.
+
+## Real-world validation (troubleshooting feedback)
+
+Knowledge is discovered from conversations, but it is only proven when someone uses it again.
+After following a guide, engineers report per recommendation whether they tried it and what
+happened. Each report is stored as a second kind of evidence next to the original messages.
+
+### How it works
+
+- **Feedback form** on the Guided Troubleshooting page ("Did it work?"): *Yes, I tried it* /
+  *No, I did not*, then *Resolved*, *Not resolved*, *Partially resolved* or *Unknown*, plus
+  optional equipment, firmware, environment and notes. Equipment and firmware are pre-filled
+  from the guide or the engineer's earlier report. Completing a guide never counts as success.
+- **Validation:** the session must exist; the step must belong to its guide, be a
+  recommendation or resolution, and have been reached; the knowledge item must be a source of
+  that step; `attempted=false` cannot carry an outcome. Clients cannot set
+  `verification_status` (always `self_reported`).
+- **Idempotent:** one record per (session, step, knowledge item). Re-sending identical feedback
+  returns the existing record; corrections keep the previous versions (`revisions`).
+- **Separate origin:** feedback is never turned into fake messages and never changes the
+  knowledge's resolution or approval status.
+- **Aggregation:** one report per session and knowledge item; success/failure totals count
+  only real attempts; breakdowns by firmware and equipment; a success rate only from 5 attempts
+  on, labelled as self-reported.
+- **Where it shows:** Knowledge Base "Real-world validation" (conversation confirmation,
+  self-reported outcomes, independent verification and formal approval as four separate
+  facts, plus individual records); search results ("Reported resolved in 3 troubleshooting
+  sessions; not resolved in 1", without changing ranking); Dashboard metrics; knowledge group
+  summaries (refreshed in the background); and new guides, which receive the counts by
+  firmware so they can ask for the firmware and warn where an action failed.
+
+### Access (MVP limitation)
+
+There are no user accounts. Creating feedback returns a one-time `edit_token` that the browser
+keeps; corrections require it in `X-Feedback-Token`, so only the submitting browser can change a
+report. Engineer identities are not recorded. There is no independent verification workflow
+yet, so every report is `self_reported`.
+
+### Try it
+
+1. Run discovery (Live Discovery) so that knowledge exists.
+2. Guided Troubleshooting: describe a similar problem, follow the guide to a recommendation.
+3. In "Did it work?" choose *Yes, I tried it* → *Resolved*, add firmware `3.2`, save.
+4. Start a second session for the same guide, report *Not resolved* on firmware `4.0`.
+5. Open the knowledge item: both reports appear under Real-world validation, with the firmware
+   breakdown; the approval status is unchanged. Search shows the summary.
+6. Generate a new guide mentioning firmware 4.0: the earlier failure is part of its context.
+
 ## Backend tests
 
 Unit tests need no database. They force `DATABASE_URL` empty, so they never touch Tiger Data even
@@ -687,6 +799,9 @@ backtick). Without `TEST_DATABASE_URL` the integration tests are skipped.
 | `backend/.env`          | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` | Must output 768 dims (DB column) |
 | `backend/.env`          | `SEARCH_MIN_SIMILARITY` / `SEARCH_SIMILARITY_MARGIN` | `0.65` / `0.06` | Semantic cut-off (calibrated) |
 | `backend/.env`          | `SEARCH_CANDIDATE_POOL` | `20`                | Candidates per retriever before fusion |
+| `backend/.env`          | `CONSOLIDATION_ENABLED` | `true`              | Compare new knowledge with related items |
+| `backend/.env`          | `CONSOLIDATION_CANDIDATE_LIMIT` / `CONSOLIDATION_MIN_SIMILARITY` | `6` / `0.6` | Candidates compared per item |
+| `backend/.env`          | `CONSOLIDATION_MAX_GROUP_SIZE` | `12`         |                                       |
 | `backend/.env`          | `DISCOVERY_DEBOUNCE_SECONDS` | `12`           | Quiet time before analyzing a thread  |
 | `backend/.env`          | `DISCOVERY_MAX_CONCURRENT_ANALYSES` | `2`     |                                       |
 | `backend/.env`          | `SIMULATION_MESSAGE_INTERVAL_SECONDS` | `2` | Demo feed speed                      |

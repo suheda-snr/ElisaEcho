@@ -352,7 +352,7 @@ async def test_discovered_knowledge_is_embedded_automatically(
     assert "confirmed in conversation" in chunks[0].content
     # Re-embedded after the update (at least the suggested and the confirmed version).
     assert len(embedder.document_calls) >= 2
-    assert "confirmed in conversation" in embedder.document_calls[-1]
+    assert any("Site 42" in c and "confirmed in conversation" in c for c in embedder.document_calls)
     assert any(e.kind == "indexed" for e in engine.events_after(0))
 
 

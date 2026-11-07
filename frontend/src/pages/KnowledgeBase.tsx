@@ -16,6 +16,8 @@ import {
   outcomeLabels,
   resolutionLabels,
 } from '@/components/discovery/labels'
+import { RelatedKnowledgeSection } from '@/components/consolidation/RelatedKnowledgeSection'
+import { RealWorldValidation } from '@/components/feedback/RealWorldValidation'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -330,6 +332,10 @@ function KnowledgeView({ item }: { item: KnowledgeItemDetail }) {
             </ol>
           )}
         </Section>
+
+        <RealWorldValidation item={item} />
+
+        <RelatedKnowledgeSection itemId={item.id} />
 
         {discovery && (
           <div className="grid gap-4 rounded-lg border bg-muted/30 p-4 text-sm md:grid-cols-2">

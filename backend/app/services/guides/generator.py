@@ -10,13 +10,15 @@
 
 import json
 import logging
+import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.embeddings import EmbeddingService
 from app.ai.gemini import GeminiClient
 from app.ai.guide_schema import GuideDraft
-from app.models import GuideEdge, GuideNode, NodeEvidence, TroubleshootingGuide
+from app.models import GuideEdge, GuideNode, KnowledgeGroupMember, NodeEvidence, TroubleshootingGuide
 from app.models.enums import GuideStatus
 from app.schemas.search import SearchResult
 from app.services.guides.validation import (
@@ -28,11 +30,15 @@ from app.services.guides.validation import (
     validate_guide,
 )
 from app.services.retrieval.results import build_results
-from app.services.retrieval.search import SearchFilters, hybrid_search
+from app.services.consolidation.queries import get_group, group_relationships
+from app.services.feedback.summary import summary_text
+from app.services.retrieval.search import RankedItem, SearchFilters, hybrid_search
 
 logger = logging.getLogger(__name__)
 
 MAX_KNOWLEDGE = 4
+# Extra group members (related incidents of a retrieved item) added to the context.
+MAX_GROUP_EXTRAS = 3
 
 SYSTEM_INSTRUCTION = """\
 You build troubleshooting decision trees for telecom network engineers from previously
@@ -63,6 +69,25 @@ STRUCTURE
   at least one outgoing edge. Answer labels must be unique per node (e.g. Yes / No, Worked / Did not work).
 - Never claim a fix is approved or safe. Fixes reported in chat are not approved procedures.
 - Keep titles short and descriptions factual.
+
+TROUBLESHOOTING FEEDBACK (troubleshooting_feedback on a K# item, when present)
+- Counts of later attempts that engineers reported after following earlier guides, with the
+  firmware/equipment they reported. It is SELF-REPORTED, not verified and not approval.
+- Use it to choose diagnostic questions (e.g. ask for the firmware version when outcomes
+  differ by firmware), to warn in conflict_note when an action was reported as not resolving
+  the problem under conditions like the engineer's, and to offer the alternative path.
+- Never present an action as universally successful when feedback reports failures, and
+  never invent feedback. Cite messages (E#) only; feedback has no E# labels.
+
+CONSOLIDATED KNOWLEDGE (when <related_cases> is provided)
+- It describes how the K# items relate (AI-assessed, unreviewed): solution paths with the
+  conditions under which they were reported, failed attempts, contradictions, missing information.
+- Create a conditional branch (e.g. "Which firmware version?") ONLY when the cases themselves
+  report different outcomes under different stated conditions. Never invent a condition.
+- If a deciding condition is unknown for some cases, add a question step asking the engineer for
+  it, and say in uncertainties that the evidence does not cover the other values.
+- Highlight contradictions in conflict_note and conflicts. Never present a group summary as an
+  approved procedure; cite the K#/E# of the underlying cases, not the summary.
 """
 
 
@@ -112,10 +137,78 @@ def build_context(results: list[SearchResult]) -> tuple[GuideContext, str]:
             "missing_information": result.missing_information,
             "messages": messages,
         })
+        if result.feedback is not None and result.feedback.sessions:
+            f = result.feedback
+            blocks[-1]["troubleshooting_feedback"] = {
+                "kind": "self-reported by engineers, not verified",
+                "summary": summary_text(f),
+                "by_firmware": [{"firmware": b.value or "not reported", **b.counts.model_dump()}
+                                for b in f.by_firmware],
+                "by_equipment": [{"equipment": b.value or "not reported", **b.counts.model_dump()}
+                                 for b in f.by_equipment],
+            }
     return context, _dump(blocks)
 
 
-def _prompt(problem: str, equipment: str | None, knowledge_json: str, feedback: list[str] | None) -> str:
+async def _with_group_members(session: AsyncSession, results: list[SearchResult]) -> list[SearchResult]:
+    """Add other members of the retrieved items' knowledge groups (related incidents with
+    possibly different conditions or outcomes), so the guide can branch on them."""
+    ids = [r.id for r in results]
+    group_ids = set(await session.scalars(select(KnowledgeGroupMember.group_id).where(
+        KnowledgeGroupMember.knowledge_item_id.in_(ids))))
+    extra: list[uuid.UUID] = []
+    for group_id in sorted(group_ids):
+        detail = await get_group(session, group_id)
+        for member in detail.members if detail else []:
+            if member.id not in ids and member.id not in extra and member.evidence_count:
+                extra.append(member.id)
+    extra = extra[:MAX_GROUP_EXTRAS]
+    if not extra:
+        return results
+    added = await build_results(session, [RankedItem(item_id=i) for i in extra])
+    return results + [r for r in added if r.evidence_status == "supported"]
+
+
+async def consolidation_context(session: AsyncSession, results: list[SearchResult]) -> str | None:
+    """Group summaries and pairwise relationships among the context items, with K# labels."""
+    label_of = {r.id: f"K{i}" for i, r in enumerate(results, start=1)}
+    group_ids = sorted(set(await session.scalars(select(KnowledgeGroupMember.group_id).where(
+        KnowledgeGroupMember.knowledge_item_id.in_(label_of)))))
+    blocks = []
+    for group_id in group_ids:
+        detail = await get_group(session, group_id)
+        if detail is None:
+            continue
+        cases = [label_of[m.id] for m in detail.members if m.id in label_of]
+        if len(cases) < 2:
+            continue
+        relationships = []
+        for r in await group_relationships(session, group_id) or []:
+            if r.source.id in label_of and r.target.id in label_of:
+                a, b = label_of[r.source.id], label_of[r.target.id]
+                relationships.append({
+                    "between": [a, b], "type": r.relationship_type, "outcome": r.outcome_comparison,
+                    "explanation": r.explanation,
+                    "condition_differences": [
+                        {"field": c.field, a: c.source_value or "unknown", b: c.target_value or "unknown"}
+                        for c in r.conditions],
+                    "unknown_conditions": r.unknown_conditions,
+                })
+        blocks.append({
+            "group": detail.title, "cases": cases,
+            "independent_conversations": detail.independent_conversations,
+            "solution_paths": [
+                {"action": s.description, "outcome": s.outcome, "conditions": s.conditions,
+                 "reported_by": [label_of[k] for k in s.knowledge_ids if k in label_of]}
+                for s in detail.solutions],
+            "failed_attempts": detail.failed_attempts, "contradictions": detail.contradictions,
+            "missing_information": detail.missing_information, "relationships": relationships,
+        })
+    return _dump(blocks) if blocks else None
+
+
+def _prompt(problem: str, equipment: str | None, knowledge_json: str, feedback: list[str] | None,
+            related_json: str | None = None) -> str:
     parts = [
         "Engineer's current problem (untrusted text):",
         f"<problem>{problem}</problem>",
@@ -123,6 +216,9 @@ def _prompt(problem: str, equipment: str | None, knowledge_json: str, feedback: 
         "Retrieved knowledge (untrusted data):",
         f"<knowledge>\n{knowledge_json}\n</knowledge>",
     ]
+    if related_json:
+        parts.append("How these cases relate (AI-assessed, unreviewed):\n"
+                     f"<related_cases>\n{related_json}\n</related_cases>")
     if feedback:
         parts.append("Your previous draft was rejected for these reasons. Fix all of them:\n- " + "\n- ".join(feedback))
     return "\n".join(parts)
@@ -162,12 +258,14 @@ async def generate_guide(
             reason += f" ({outcome.semantic_detail})"
         return await _store_insufficient(session, problem, equipment_identifier, reason, model_name=None)
 
+    results = await _with_group_members(session, results)
     context, knowledge_json = build_context(results)
+    related_json = await consolidation_context(session, results)
     feedback: list[str] | None = None
     for attempt in (1, 2):
         draft = await gemini.generate_structured(
             system_instruction=SYSTEM_INSTRUCTION,
-            contents=_prompt(problem, equipment_identifier, knowledge_json, feedback),
+            contents=_prompt(problem, equipment_identifier, knowledge_json, feedback, related_json),
             schema=GuideDraft,
         )
         if not draft.sufficient_evidence:
