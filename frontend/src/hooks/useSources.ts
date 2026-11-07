@@ -6,6 +6,9 @@ import {
   disconnectMailbox,
   getEmailConnections,
   getInventory,
+  getMailboxes,
+  importEmails,
+  importSampleEmails,
   setMailboxEnabled,
 } from '@/services/api'
 import type { EmailConnectionCreate } from '@/types/api'
@@ -40,5 +43,29 @@ export function useMailboxActions() {
       onSuccess: done,
     }),
     disconnect: useMutation({ mutationFn: (id: string) => disconnectMailbox(id), onSuccess: done }),
+  }
+}
+
+export function useMailboxes() {
+  return useQuery({
+    queryKey: ['email', 'mailboxes'],
+    queryFn: getMailboxes,
+    refetchInterval: 15_000,
+  })
+}
+
+export function useEmailImport() {
+  const client = useQueryClient()
+  const done = () => {
+    void client.invalidateQueries({ queryKey: ['email'] })
+    void client.invalidateQueries({ queryKey: ['discovery'] })
+  }
+  return {
+    samples: useMutation({ mutationFn: importSampleEmails, onSuccess: done }),
+    upload: useMutation({
+      mutationFn: ({ mailbox, raws }: { mailbox: string; raws: string[] }) =>
+        importEmails(mailbox, raws),
+      onSuccess: done,
+    }),
   }
 }

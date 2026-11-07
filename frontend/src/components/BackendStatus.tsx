@@ -14,6 +14,8 @@ export function BackendStatus({ className }: { className?: string }) {
   const { isPending, isError } = useHealth()
   const status: Status = isPending ? 'connecting' : isError ? 'unavailable' : 'connected'
   const style = statusStyles[status]
+  // Only shown when something is wrong; a healthy connection needs no label.
+  if (status !== 'unavailable') return null
 
   return (
     <span

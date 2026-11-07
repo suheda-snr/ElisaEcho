@@ -97,7 +97,7 @@ export function RealWorldValidation({ item }: { item: KnowledgeItemDetail }) {
             <BreakdownTable title="By firmware" rows={s.by_firmware} />
             <BreakdownTable title="By equipment" rows={s.by_equipment} />
           </div>
-          <p className="text-xs text-muted-foreground">{s.note}</p>
+          <p className="text-xs text-muted-foreground">Self-reported by engineers.</p>
         </div>
       )}
 

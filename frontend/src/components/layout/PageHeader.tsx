@@ -18,17 +18,14 @@ export function PageHeader({ title, description, actions, children }: PageHeader
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
-            {item?.step && (
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                {item.step}
-              </span>
-            )}
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {title ?? item?.label}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            {description ?? item?.description}
-          </p>
+          {(description ?? item?.description) && (
+            <p className="mt-1 max-w-3xl text-[15px] text-muted-foreground">
+              {description ?? item?.description}
+            </p>
+          )}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>

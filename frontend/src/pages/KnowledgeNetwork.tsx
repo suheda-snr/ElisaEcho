@@ -1,13 +1,6 @@
 import { Background, MarkerType, ReactFlow, type Edge, type Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import {
-  CircleDashed,
-  ClipboardList,
-  Network,
-  ShieldAlert,
-  TriangleAlert,
-  Workflow,
-} from 'lucide-react'
+import { CircleDashed, Network, TriangleAlert, Workflow } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
@@ -19,8 +12,10 @@ import {
 } from '@/components/consolidation/labels'
 import { RelationshipCard } from '@/components/consolidation/RelationshipCard'
 import { KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
-import { resolutionLabels } from '@/components/discovery/labels'
-import { PageHeader } from '@/components/layout/PageHeader'
+import { Disclosure } from '@/components/common/Disclosure'
+import { EmptyState, Notice } from '@/components/common/States'
+import { ResolutionBadge } from '@/components/common/StatusBadges'
+import { InventoryCard } from '@/components/sources/InventoryCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -42,24 +37,27 @@ export default function KnowledgeNetwork() {
   const relationships = useGroupRelationships(selectedId)
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader description="Related incidents from separate conversations, grouped automatically. See which fixes worked under which conditions, where reports disagree and what is still unknown. Groups and summaries are AI suggestions for expert review." />
+    <div className="flex flex-col gap-5">
+      <p className="text-[15px] text-muted-foreground">
+        Related cases from separate conversations, grouped automatically: which fix worked under
+        which conditions, and where reports disagree.
+      </p>
 
-      {groups.isError && <p className="text-sm text-red-700">{getErrorMessage(groups.error)}</p>}
+      {groups.isError && <Notice tone="error">{getErrorMessage(groups.error)}</Notice>}
 
       {groups.data && items.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
-            <CircleDashed className="size-6" aria-hidden="true" />
-            <p className="max-w-md">
-              No groups yet. When newly discovered knowledge matches earlier cases (same problem,
-              supporting evidence or a different outcome), they are grouped here automatically.
-            </p>
+        <EmptyState
+          icon={CircleDashed}
+          title="No related cases yet"
+          action={
             <Button asChild>
-              <Link to="/discovery">Run the live demo</Link>
+              <Link to="/discovery">Open Live Discovery</Link>
             </Button>
-          </CardContent>
-        </Card>
+          }
+        >
+          When new knowledge matches earlier cases (same problem, supporting evidence or a different
+          outcome), they are grouped here.
+        </EmptyState>
       ) : (
         <div className="grid gap-6 lg:grid-cols-12">
           <ul className="flex flex-col gap-2 lg:col-span-4" aria-label="Knowledge groups">
@@ -106,6 +104,10 @@ export default function KnowledgeNetwork() {
           </div>
         </div>
       )}
+
+      <Disclosure title="Network inventory (nodes, unit classes, sites)">
+        <InventoryCard />
+      </Disclosure>
     </div>
   )
 }
@@ -167,28 +169,21 @@ function GroupView({
             <Badge variant="outline">
               {group.independent_conversations} independent conversations
             </Badge>
-            <Badge variant="secondary">AI summary · not expert-reviewed</Badge>
+            <Badge variant="secondary">AI summary · needs review</Badge>
           </div>
           <div>
             <Button size="sm" asChild>
               <Link to={`/troubleshoot?problem=${encodeURIComponent(problem)}`}>
                 <Workflow aria-hidden="true" />
-                Build a troubleshooting guide from these cases
+                Troubleshoot with these cases
               </Link>
             </Button>
           </div>
         </div>
 
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <span>
-            This summary combines what engineers reported in separate conversations. It is not an
-            approved procedure. Check the conditions and the original messages before acting.
-            {group.summary_pending && ' The summary is being updated for recent changes.'}
-          </span>
-        </div>
-
-        <CaseGraph group={group} relationships={relationships} caseLabel={caseLabel} />
+        {group.summary_pending && (
+          <Notice tone="info">The summary is being updated for recent changes.</Notice>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="Shared problem">
@@ -199,6 +194,60 @@ function GroupView({
             <List items={group.known_environment} empty="Not stated in the conversations." />
           </Section>
         </div>
+
+        <Section title="Compare cases">
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[40rem] text-left text-sm">
+              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Case</th>
+                  <th className="px-3 py-2 font-medium">Reported fix</th>
+                  <th className="px-3 py-2 font-medium">Where</th>
+                  <th className="px-3 py-2 font-medium">Conditions</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.members.map((m) => (
+                  <tr key={m.id} className="border-t align-top">
+                    <td className="px-3 py-2.5">
+                      <Link
+                        to={`/knowledge?item=${m.id}`}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {caseLabel.get(m.id)}
+                      </Link>
+                      <span
+                        className="block max-w-48 truncate text-xs text-muted-foreground"
+                        title={m.conversation ?? m.title}
+                      >
+                        {m.conversation ?? m.title}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-foreground">{m.resolution ?? '–'}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap">
+                      {m.equipment.join(', ') || (
+                        <span className="font-sans text-muted-foreground">not stated</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-foreground/80">
+                      {m.applicability_conditions.slice(0, 2).join('; ') || (
+                        <span className="text-muted-foreground">not stated</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="flex flex-col items-start gap-1">
+                        <ResolutionBadge status={m.resolution_status} />
+                        <OutdatedBadge validTo={m.valid_to} />
+                        <KnowledgeTypeBadge type={m.knowledge_type} />
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
 
         <Section title={`Resolution paths (${group.solutions.length})`}>
           {group.solutions.length === 0 && (
@@ -264,60 +313,23 @@ function GroupView({
           </Section>
         </div>
 
-        <Section
-          title={`Cases (${group.members.length})`}
-          icon={<ClipboardList className="size-3.5" aria-hidden="true" />}
-        >
-          <ol className="flex flex-col gap-2">
-            {group.members.map((m) => (
-              <li key={m.id} className="flex flex-col gap-1 rounded-lg border bg-background p-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <Link
-                    to={`/knowledge?item=${m.id}`}
-                    className="text-sm font-medium text-foreground hover:underline"
-                  >
-                    <span className="mr-1.5 font-mono text-xs text-muted-foreground">
-                      {caseLabel.get(m.id)}
-                    </span>
-                    {m.title}
-                  </Link>
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <OutdatedBadge validTo={m.valid_to} />
-                    <KnowledgeTypeBadge type={m.knowledge_type} />
-                    {resolutionLabels[m.resolution_status]}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {m.conversation && `“${m.conversation}”`}
-                  {m.source_name && ` · ${m.source_name}`} · {m.evidence_count} evidence message(s)
-                </p>
-                {m.resolution && <p className="text-sm text-foreground">Fix: {m.resolution}</p>}
-                {m.equipment.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {m.equipment.map((e) => (
-                      <Badge key={e} variant="secondary" className="font-mono">
-                        {e}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
-        </Section>
-
-        <Section title="Condition differences and evidence">
-          {withConditions.length === 0 && relationships.length === 0 && (
+        <Disclosure title="Pairwise comparisons and evidence" count={relationships.length}>
+          {relationships.length === 0 ? (
             <p className="text-sm text-muted-foreground">No pairwise comparisons available.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {[...withConditions, ...relationships.filter((r) => !withConditions.includes(r))].map(
+                (r) => (
+                  <RelationshipCard key={r.id} relationship={r} />
+                ),
+              )}
+            </div>
           )}
-          <div className="flex flex-col gap-3">
-            {[...withConditions, ...relationships.filter((r) => !withConditions.includes(r))].map(
-              (r) => (
-                <RelationshipCard key={r.id} relationship={r} />
-              ),
-            )}
-          </div>
-        </Section>
+        </Disclosure>
+
+        <Disclosure title="Show relationship graph">
+          <CaseGraph group={group} relationships={relationships} caseLabel={caseLabel} />
+        </Disclosure>
 
         <p className="text-xs text-muted-foreground">
           Summary generated by {group.summary_model ?? 'AI'}

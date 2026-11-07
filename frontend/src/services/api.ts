@@ -14,8 +14,10 @@ import type {
   EmailCheckResult,
   EmailConnection,
   EmailConnectionCreate,
+  EmailImportResult,
   Guide,
   Inventory,
+  Mailbox,
   GroupBrief,
   GroupDetail,
   KnowledgeRelationship,
@@ -180,6 +182,24 @@ export async function getKnowledgeFeedback(id: string): Promise<Page<Troubleshoo
 
 export async function getFeedbackSummary(id: string): Promise<FeedbackSummary> {
   const { data } = await api.get<FeedbackSummary>(`/knowledge/${id}/feedback/summary`)
+  return data
+}
+
+export async function getMailboxes(): Promise<Mailbox[]> {
+  const { data } = await api.get<Mailbox[]>('/integrations/email/mailboxes')
+  return data
+}
+
+export async function importSampleEmails(): Promise<EmailImportResult> {
+  const { data } = await api.post<EmailImportResult>('/integrations/email/import-samples')
+  return data
+}
+
+export async function importEmails(mailbox: string, raws: string[]): Promise<EmailImportResult> {
+  const { data } = await api.post<EmailImportResult>('/integrations/email/import', {
+    mailbox,
+    emails: raws.map((raw) => ({ raw })),
+  })
   return data
 }
 

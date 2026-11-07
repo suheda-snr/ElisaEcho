@@ -13,9 +13,16 @@ from app.models import (
     Message,
     TroubleshootingFeedback,
     TroubleshootingGuide,
+    KnowledgeEntityLink,
     TroubleshootingSession,
 )
-from app.models.enums import DetectionStatus, ResolutionStatus, SessionStatus, ThreadProcessingStatus
+from app.models.enums import (
+    ApprovalStatus,
+    DetectionStatus,
+    ResolutionStatus,
+    SessionStatus,
+    ThreadProcessingStatus,
+)
 from app.schemas.discovery import CandidateSummary, DiscoveryMetrics, ThreadDiscovery
 from app.services.feedback.summary import feedback_summaries
 from app.services.threads import list_threads
@@ -80,6 +87,10 @@ async def discovery_metrics(session: AsyncSession) -> DiscoveryMetrics:
         feedback_resolved=sum(s.counts.resolved for s in feedback.values()),
         feedback_not_resolved=sum(s.counts.not_resolved for s in feedback.values()),
         knowledge_with_conflicting_feedback=sum(s.has_conflicting_reports for s in feedback.values()),
+        linked_entities=await count(select(func.count()).select_from(
+            select(KnowledgeEntityLink.entity_type, KnowledgeEntityLink.entity_key).distinct().subquery())),
+        needs_review=await count(select(func.count()).select_from(KnowledgeItem).where(
+            KnowledgeItem.approval_status == ApprovalStatus.UNREVIEWED)),
     )
 
 

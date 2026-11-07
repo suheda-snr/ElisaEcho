@@ -4,7 +4,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import KnowledgeEvidence, KnowledgeItem
+from app.models import ConversationThread, KnowledgeCandidate, KnowledgeEvidence, KnowledgeItem
 from app.models.enums import ApprovalStatus, ResolutionStatus
 from app.schemas.knowledge import DiscoveryInfo
 
@@ -26,6 +26,9 @@ async def list_knowledge_items(
     total = await session.scalar(select(func.count()).select_from(query.subquery())) or 0
     result = await session.scalars(
         query.order_by(KnowledgeItem.created_at.desc(), KnowledgeItem.id).limit(limit).offset(offset)
+        .options(selectinload(KnowledgeItem.entity_links),
+                 selectinload(KnowledgeItem.candidate).selectinload(KnowledgeCandidate.thread)
+                 .selectinload(ConversationThread.source))
     )
     return list(result), total
 

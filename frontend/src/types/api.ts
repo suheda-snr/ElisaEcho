@@ -40,6 +40,8 @@ export interface DiscoveryMetrics {
   feedback_resolved: number
   feedback_not_resolved: number
   knowledge_with_conflicting_feedback: number
+  linked_entities: number
+  needs_review: number
 }
 
 export interface SimulationStatus {
@@ -101,7 +103,7 @@ export interface ThreadDiscovery {
   title: string | null
   external_thread_id: string
   source_name: string | null
-  source_type: 'slack' | 'teams' | 'simulated' | null
+  source_type: 'slack' | 'teams' | 'email' | 'simulated' | null
   processing_status: ProcessingStatus
   message_count: number
   last_message_at: string | null
@@ -159,6 +161,10 @@ export interface KnowledgeItemSummary {
   valid_to: string | null
   created_at: string
   updated_at: string
+  source_type: string | null
+  source_name: string | null
+  conversation: string | null
+  entity_links: EntityLink[]
 }
 
 export interface KnowledgeItemDetail extends ContextFields, KnowledgeItemSummary {
@@ -233,7 +239,7 @@ export interface EvidenceReference {
   excerpt: string | null
   deleted_at_source: boolean
   source_name: string | null
-  source_type: 'slack' | 'teams' | 'simulated' | null
+  source_type: 'slack' | 'teams' | 'email' | 'simulated' | null
   thread_id: string
   thread_title: string | null
   source_url: string | null
@@ -487,7 +493,7 @@ export interface GuideNodeEvidence {
   excerpt: string | null
   deleted_at_source: boolean
   source_name: string | null
-  source_type: 'slack' | 'teams' | 'simulated' | null
+  source_type: 'slack' | 'teams' | 'email' | 'simulated' | null
   thread_title: string | null
   source_url: string | null
 }

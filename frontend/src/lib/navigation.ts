@@ -2,9 +2,7 @@ import {
   BookOpenText,
   Cable,
   LayoutDashboard,
-  Network,
   Radar,
-  Search,
   Workflow,
   type LucideIcon,
 } from 'lucide-react'
@@ -12,69 +10,48 @@ import {
 export interface NavItem {
   to: string
   label: string
-  /** One sentence shown under the page title and on the dashboard. */
+  /** One short sentence under the page title. */
   description: string
   icon: LucideIcon
-  group: 'overview' | 'workflow' | 'setup' | 'planned'
-  /** Position in the end-to-end workflow (shown as a number). */
-  step?: number
+  group: 'main' | 'setup'
+  /** Other paths that belong to this page (old routes, sub-views). */
+  matches?: string[]
 }
 
-/** Ordered like the product workflow: discover -> store -> find -> act. */
 export const navItems: NavItem[] = [
   {
     to: '/',
     label: 'Overview',
-    description: 'How Elisa Echo works, live metrics and system status.',
+    description: 'What Elisa Echo has captured from your conversations.',
     icon: LayoutDashboard,
-    group: 'overview',
+    group: 'main',
   },
   {
     to: '/discovery',
     label: 'Live Discovery',
-    description: 'Watch AI find operational knowledge in engineers’ conversations as they happen.',
+    description: 'Conversations as they arrive, and the context the AI found in them.',
     icon: Radar,
-    group: 'workflow',
-    step: 1,
+    group: 'main',
   },
   {
     to: '/knowledge',
-    label: 'Knowledge Base',
-    description: 'Every piece of discovered knowledge, with the messages that prove it.',
+    label: 'Knowledge Explorer',
+    description: 'Search, browse and compare everything that was discovered.',
     icon: BookOpenText,
-    group: 'workflow',
-    step: 2,
-  },
-  {
-    to: '/network',
-    label: 'Knowledge Network',
-    description:
-      'Related incidents grouped automatically: which fixes worked under which conditions, and where reports disagree.',
-    icon: Network,
-    group: 'workflow',
-    step: 3,
-  },
-  {
-    to: '/search',
-    label: 'Search',
-    description: 'Describe a problem in your own words and find how colleagues solved it.',
-    icon: Search,
-    group: 'workflow',
-    step: 4,
+    group: 'main',
+    matches: ['/search', '/network'],
   },
   {
     to: '/troubleshoot',
-    label: 'Guided Troubleshooting',
-    description: 'A step-by-step decision tree built only from evidence, saved as a session.',
+    label: 'Troubleshooting',
+    description: 'Step-by-step guidance built from discovered knowledge.',
     icon: Workflow,
-    group: 'workflow',
-    step: 5,
+    group: 'main',
   },
   {
     to: '/integrations',
     label: 'Integrations',
-    description:
-      'Connect authorized Slack channels so knowledge is discovered from real conversations.',
+    description: 'Where knowledge is captured from.',
     icon: Cable,
     group: 'setup',
   },
@@ -82,6 +59,8 @@ export const navItems: NavItem[] = [
 
 export function navItemFor(pathname: string): NavItem | undefined {
   return navItems.find((item) =>
-    item.to === '/' ? pathname === '/' : pathname.startsWith(item.to),
+    item.to === '/'
+      ? pathname === '/'
+      : [item.to, ...(item.matches ?? [])].some((p) => pathname.startsWith(p)),
   )
 }

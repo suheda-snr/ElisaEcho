@@ -1,15 +1,15 @@
-import { BookOpenText, CircleAlert, Pause, Play, RotateCcw } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { FlaskConical, Hash, LoaderCircle, Pause, Play, RotateCcw } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 
+import { Disclosure } from '@/components/common/Disclosure'
+import { Notice } from '@/components/common/States'
+import { SourceBadge } from '@/components/common/StatusBadges'
 import { KnowledgePanel } from '@/components/discovery/KnowledgePanel'
 import { MessageList, ThreadList } from '@/components/discovery/ThreadFeed'
 import { formatClock } from '@/components/discovery/labels'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Tabs } from '@/components/Tabs'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   isPipelineBusy,
   useDiscoveryEvents,
@@ -19,6 +19,7 @@ import {
   useSimulationControls,
   useThreadMessages,
 } from '@/hooks/useDiscovery'
+import { useSlackStatus } from '@/hooks/useIntegrations'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
 
@@ -31,13 +32,14 @@ const levelStyles = {
 
 export default function LiveDiscovery() {
   const status = useDiscoveryStatus()
+  const slack = useSlackStatus()
   const live = isPipelineBusy(status.data)
   const threads = useDiscoveryThreads(live)
   const events = useDiscoveryEvents(live)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [followLive, setFollowLive] = useState(true)
-  const [tab, setTab] = useState<'analysis' | 'activity'>('analysis')
+  const [demoOpen, setDemoOpen] = useState(false)
   const controls = useSimulationControls(() => {
     events.reset()
     setSelectedId(null)
@@ -65,7 +67,7 @@ export default function LiveDiscovery() {
     [item.data],
   )
 
-  // Keep the newest message in view while following the live feed.
+  // Keep the newest message in view while following live activity.
   const messageCount = messages.data?.items.length ?? 0
   useEffect(() => {
     if (!followLive || messageCount === 0) return
@@ -78,6 +80,7 @@ export default function LiveDiscovery() {
   const devControls = status.data?.development_controls ?? false
   const mutationError = controls.start.error ?? controls.stop.error ?? controls.reset.error
   const progress = sim && sim.total > 0 ? (sim.delivered + sim.skipped_duplicates) / sim.total : 0
+  const busy = (analysis?.analyzing ?? 0) + (analysis?.queued ?? 0)
 
   const selectThread = (id: string) => {
     setSelectedId(id)
@@ -87,7 +90,7 @@ export default function LiveDiscovery() {
   const onReset = () => {
     if (
       window.confirm(
-        'Delete all synthetic demo conversations and the knowledge discovered from them? Other data is not affected.',
+        'Delete the synthetic demo conversations and the knowledge discovered from them? Slack and other data are not affected.',
       )
     ) {
       controls.reset.mutate()
@@ -95,123 +98,135 @@ export default function LiveDiscovery() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
         actions={
-          <>
-            {sim?.running ? (
-              <Button
-                variant="outline"
-                onClick={() => controls.stop.mutate()}
-                disabled={!devControls || controls.stop.isPending}
-              >
-                <Pause aria-hidden="true" />
-                Stop
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  setFollowLive(true)
-                  controls.start.mutate()
-                }}
-                disabled={!devControls || controls.start.isPending || !status.data}
-              >
-                <Play aria-hidden="true" />
-                Start simulation
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              onClick={onReset}
-              disabled={!devControls || controls.reset.isPending}
-            >
-              <RotateCcw aria-hidden="true" />
-              Reset demo
-            </Button>
-            <Button variant="ghost" asChild>
-              <Link to="/knowledge">
-                <BookOpenText aria-hidden="true" />
-                Knowledge Base
-              </Link>
-            </Button>
-          </>
+          <Button
+            variant={demoOpen || sim?.running ? 'secondary' : 'outline'}
+            onClick={() => setDemoOpen((v) => !v)}
+            aria-expanded={demoOpen}
+          >
+            <FlaskConical aria-hidden="true" />
+            Demo mode
+            {sim?.running && <span className="size-2 animate-pulse rounded-full bg-primary" />}
+          </Button>
         }
       >
-        {/* Status strip */}
-        <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:gap-6">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="font-medium text-foreground">
-                {sim?.running
-                  ? 'Simulated chat feed running'
-                  : sim?.finished_at
-                    ? 'Feed finished'
-                    : sim && sim.total === 0
-                      ? 'Ready: press Start simulation to stream synthetic chat messages'
-                      : 'Feed stopped'}
-              </span>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {sim ? `${sim.delivered + sim.skipped_duplicates} / ${sim.total} messages` : '…'}
-                {sim &&
-                  sim.skipped_duplicates > 0 &&
-                  ` · ${sim.skipped_duplicates} duplicates ignored`}
-              </span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${Math.round(progress * 100)}%` }}
-              />
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Badge variant="secondary">
-              AI: {analysis ? `${analysis.analyzing} analyzing · ${analysis.queued} waiting` : '…'}
-            </Badge>
-            <Badge variant="outline" className="font-mono">
-              {analysis?.model ?? '…'}
-            </Badge>
-            <Badge variant="outline">Synthetic data</Badge>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <span className="inline-flex items-center gap-1.5">
+            <Hash
+              className={cn(
+                'size-4',
+                slack.data?.connected ? 'text-emerald-600' : 'text-muted-foreground',
+              )}
+              aria-hidden="true"
+            />
+            {slack.data?.connected
+              ? `Slack connected · ${slack.data.monitored_channels.length} channel(s)`
+              : 'Slack not connected'}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+            {busy > 0 && (
+              <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
+            )}
+            {!analysis
+              ? 'AI status…'
+              : !analysis.gemini_configured
+                ? 'AI analysis not configured'
+                : analysis.paused_until
+                  ? `AI paused until ${formatClock(analysis.paused_until)} (quota)`
+                  : busy > 0
+                    ? `Analyzing ${busy} conversation(s)`
+                    : 'AI idle'}
+          </span>
+          {sim?.running && (
+            <span className="text-muted-foreground">
+              Demo feed {sim.delivered + sim.skipped_duplicates}/{sim.total}
+            </span>
+          )}
+          {!followLive && (
+            <Button variant="ghost" size="sm" onClick={() => setFollowLive(true)}>
+              Follow live activity
+            </Button>
+          )}
         </div>
       </PageHeader>
 
-      {(status.isError ||
-        (analysis && !analysis.gemini_configured) ||
-        analysis?.paused_until ||
-        (status.data && !devControls) ||
-        mutationError != null) && (
-        <div className="flex flex-col gap-2">
-          {status.isError && <Alert>{getErrorMessage(status.error)}</Alert>}
-          {analysis && !analysis.gemini_configured && (
-            <Alert>
-              Gemini is not configured (GEMINI_API_KEY is missing on the backend). Messages are
-              still received, but no knowledge can be discovered.
-            </Alert>
-          )}
-          {analysis?.paused_until && (
-            <Alert>
-              AI analysis is paused until {formatClock(analysis.paused_until)} because the Gemini
-              quota is exhausted. Messages are still received; nothing is guessed meanwhile.
-            </Alert>
-          )}
-          {status.data && !devControls && (
-            <Alert>Simulation controls are only available in development.</Alert>
-          )}
-          {mutationError != null && <Alert>{getErrorMessage(mutationError)}</Alert>}
-        </div>
+      {demoOpen && (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-foreground">Demo mode</span>
+              <span className="text-sm text-muted-foreground">
+                Streams synthetic chat, Teams and email conversations (incl. the TRN-042 case)
+                through the same pipeline as Slack.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {sim?.running ? (
+                <Button
+                  variant="outline"
+                  onClick={() => controls.stop.mutate()}
+                  disabled={!devControls || controls.stop.isPending}
+                >
+                  <Pause aria-hidden="true" />
+                  Stop feed
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setFollowLive(true)
+                    controls.start.mutate()
+                  }}
+                  disabled={!devControls || controls.start.isPending || !status.data}
+                >
+                  <Play aria-hidden="true" />
+                  Start demo feed
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                onClick={onReset}
+                disabled={!devControls || controls.reset.isPending}
+              >
+                <RotateCcw aria-hidden="true" />
+                Reset demo data
+              </Button>
+              {sim && sim.total > 0 && (
+                <span className="flex min-w-40 flex-1 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+                  <span
+                    className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
+                    aria-hidden="true"
+                  >
+                    <span
+                      className="block h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${Math.round(progress * 100)}%` }}
+                    />
+                  </span>
+                  {sim.delivered + sim.skipped_duplicates}/{sim.total}
+                </span>
+              )}
+            </div>
+            {!devControls && status.data && (
+              <p className="text-sm text-muted-foreground">
+                Demo controls are available in development only.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* 1. Conversations */}
-        <Card className="lg:col-span-3">
+      {status.isError && <Notice tone="error">{getErrorMessage(status.error)}</Notice>}
+      {mutationError != null && <Notice tone="error">{getErrorMessage(mutationError)}</Notice>}
+
+      <div className="grid gap-5 lg:grid-cols-12">
+        <Card className="gap-3 lg:col-span-4">
           <CardHeader>
             <CardTitle>Conversations</CardTitle>
-            <CardDescription>Monitored Slack channels and the simulated feed</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+          <CardContent className="max-h-[40rem] overflow-y-auto">
             {threads.isError ? (
-              <Alert>{getErrorMessage(threads.error)}</Alert>
+              <Notice tone="error">{getErrorMessage(threads.error)}</Notice>
             ) : (
               <ThreadList
                 threads={threadItems}
@@ -220,26 +235,23 @@ export default function LiveDiscovery() {
                 onSelect={selectThread}
               />
             )}
-            {!followLive && sim?.running && (
-              <Button variant="ghost" size="sm" onClick={() => setFollowLive(true)}>
-                Follow live activity
-              </Button>
-            )}
           </CardContent>
         </Card>
 
-        {/* 2. Messages */}
-        <Card className="lg:col-span-4">
+        <Card className="gap-3 lg:col-span-4">
           <CardHeader>
-            <CardTitle className="truncate">{selected?.title ?? 'Messages'}</CardTitle>
-            <CardDescription>
-              {selected
-                ? `${selected.message_count} messages · highlighted ones are cited as evidence`
-                : 'Select a conversation'}
-            </CardDescription>
+            <CardTitle className="truncate" title={selected?.title ?? undefined}>
+              {selected?.title ?? 'Messages'}
+            </CardTitle>
+            {selected && (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <SourceBadge type={selected.source_type} />
+                {selected.source_name && <span className="truncate">{selected.source_name}</span>}
+              </p>
+            )}
           </CardHeader>
           <CardContent>
-            <div className="max-h-[36rem] overflow-y-auto pr-1">
+            <div className="max-h-[40rem] overflow-y-auto pr-1">
               {selected ? (
                 <MessageList
                   messages={messages.data?.items ?? []}
@@ -247,76 +259,57 @@ export default function LiveDiscovery() {
                   isLoading={messages.isPending}
                 />
               ) : (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  No conversations yet. Press Start simulation.
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Select a conversation.
                 </p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* 3. AI result + activity */}
-        <Card className="lg:col-span-5">
-          <CardHeader className="gap-3">
-            <Tabs
-              label="Discovery details"
-              value={tab}
-              onChange={setTab}
-              tabs={[
-                { value: 'analysis', label: 'AI analysis' },
-                { value: 'activity', label: 'Activity log', count: events.events.length },
-              ]}
-            />
+        <Card className="gap-3 lg:col-span-4">
+          <CardHeader>
+            <CardTitle>Discovered context</CardTitle>
           </CardHeader>
           <CardContent>
-            {tab === 'analysis' ? (
-              <KnowledgePanel
-                thread={selected}
-                item={item.data}
-                itemLoading={item.isPending}
-                itemError={item.error}
-                messages={messages.data?.items ?? []}
-                geminiConfigured={analysis?.gemini_configured ?? false}
-                onRetry={
-                  devControls && selected ? () => controls.analyze.mutate(selected.id) : undefined
-                }
-                retrying={controls.analyze.isPending}
-                retryError={controls.analyze.error}
-              />
-            ) : events.events.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No activity yet.</p>
-            ) : (
-              <ol className="flex max-h-[36rem] flex-col-reverse gap-1.5 overflow-y-auto text-sm">
-                {events.events.map((e) => (
-                  <li key={e.id} className="flex gap-2">
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                      {formatClock(e.at)}
-                    </span>
-                    <span className={cn('min-w-0', levelStyles[e.level])}>
-                      {e.thread_title && (
-                        <span className="font-medium text-foreground">{e.thread_title}: </span>
-                      )}
-                      {e.message}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
+            <KnowledgePanel
+              thread={selected}
+              item={item.data}
+              itemLoading={item.isPending}
+              itemError={item.error}
+              messages={messages.data?.items ?? []}
+              geminiConfigured={analysis?.gemini_configured ?? false}
+              onRetry={
+                devControls && selected ? () => controls.analyze.mutate(selected.id) : undefined
+              }
+              retrying={controls.analyze.isPending}
+              retryError={controls.analyze.error}
+            />
           </CardContent>
         </Card>
       </div>
-    </div>
-  )
-}
 
-function Alert({ children }: { children: ReactNode }) {
-  return (
-    <div
-      role="alert"
-      className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-    >
-      <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <div>{children}</div>
+      <Disclosure title="Activity log" count={events.events.length}>
+        {events.events.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No activity yet.</p>
+        ) : (
+          <ol className="flex max-h-80 flex-col-reverse gap-1.5 overflow-y-auto text-sm">
+            {events.events.map((e) => (
+              <li key={e.id} className="flex gap-3">
+                <span className="shrink-0 font-mono text-xs leading-5 text-muted-foreground tabular-nums">
+                  {formatClock(e.at)}
+                </span>
+                <span className={cn('min-w-0', levelStyles[e.level])}>
+                  {e.thread_title && (
+                    <span className="font-medium text-foreground">{e.thread_title}: </span>
+                  )}
+                  {e.message}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Disclosure>
     </div>
   )
 }

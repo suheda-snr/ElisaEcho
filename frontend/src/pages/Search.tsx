@@ -1,68 +1,68 @@
 import {
-  CircleAlert,
-  CircleCheck,
-  CircleDashed,
+  ArrowRight,
+  History,
   LoaderCircle,
   MessageSquareQuote,
   Network,
   Search as SearchIcon,
-  ShieldAlert,
-  Sparkles,
+  SearchX,
+  SlidersHorizontal,
   Users,
   Workflow,
 } from 'lucide-react'
-import { type FormEvent, type ReactNode, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import {
-  evidenceLabels,
-  formatTime,
-  outcomeLabels,
-  resolutionLabels,
-} from '@/components/discovery/labels'
+  EntityChips,
+  ResolutionBadge,
+  ReviewBadge,
+  SourceBadge,
+} from '@/components/common/StatusBadges'
+import { EmptyState, Notice, SectionTitle } from '@/components/common/States'
 import { groupHeadline } from '@/components/consolidation/labels'
-import { ContextSection, KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
+import { KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
+import { evidenceLabels, formatTime } from '@/components/discovery/labels'
 import { feedbackSentence } from '@/components/feedback/labels'
-import { PageHeader } from '@/components/layout/PageHeader'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { useKnowledgeSearch } from '@/hooks/useSearch'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
 import type {
   ApprovalStatus,
+  EvidenceType,
   GroupBrief,
   ResolutionStatus,
-  SearchRanking,
   SearchRequest,
   SearchResponse,
   SearchResult,
 } from '@/types/api'
 
-// Demonstration queries for the synthetic demo data. They are sent to the real search API;
-// nothing about the answers is hardcoded.
+// Queries that fit the demo data; they run against the real search API.
 const EXAMPLES = [
-  'Connection keeps dropping after router restart',
-  'Site 42 intermittent connectivity',
-  'Restarting the device did not fix the issue',
-  'Routing adjacency with the upstream provider keeps resetting',
-  'PE-03',
+  'TRN-118: port up after optical module swap, but zero traffic',
+  'Customers lose their connection every half hour',
+  'How do I get the barrier key for SITE-PELLO-03?',
+  'BGP session keeps resetting',
 ]
 
 const semanticNotes: Record<SearchResponse['retrieval']['semantic'], string | null> = {
   used: null,
-  no_embeddings: 'No knowledge has been embedded yet, so only keyword and identifier matching ran.',
-  unavailable:
-    'Semantic search is unavailable right now, so only keyword and identifier matching ran.',
-  not_configured: 'Gemini is not configured, so only keyword and identifier matching ran.',
+  no_embeddings: 'Nothing is embedded yet: keyword and identifier matching only.',
+  unavailable: 'Semantic search is temporarily unavailable: keyword and identifier matching only.',
+  not_configured: 'Gemini is not configured: keyword and identifier matching only.',
 }
+
+const selectClass =
+  'h-9 rounded-lg border bg-background px-2 text-sm text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none'
 
 export default function Search() {
   // The query lives in the URL (?q=...), so searches can be shared and survive reloads.
   const [params, setParams] = useSearchParams()
   const initial = params.get('q')?.trim() ?? ''
   const [text, setText] = useState(initial)
+  const [showFilters, setShowFilters] = useState(false)
   const [resolution, setResolution] = useState<ResolutionStatus | ''>('')
   const [approval, setApproval] = useState<ApprovalStatus | ''>('')
   const [includeOutdated, setIncludeOutdated] = useState(false)
@@ -72,6 +72,7 @@ export default function Search() {
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const search = useKnowledgeSearch(request)
+  const activeFilters = [resolution, approval, includeOutdated, asOf].filter(Boolean).length
 
   const run = (query: string) => {
     const trimmed = query.trim()
@@ -102,34 +103,49 @@ export default function Search() {
   const note = data ? semanticNotes[data.retrieval.semantic] : null
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader description="Describe the problem in your own words. Matches by meaning, keywords and exact identifiers (equipment, sites, incidents), with the original messages behind every answer." />
-      <Card>
-        <CardContent className="flex flex-col gap-4">
-          <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row" role="search">
-            <label htmlFor="knowledge-search" className="sr-only">
-              Describe the problem
-            </label>
-            <div className="relative flex-1">
-              <SearchIcon
-                className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <input
-                id="knowledge-search"
-                type="search"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="e.g. customers keep losing their connection even after a router reboot"
-                maxLength={500}
-                autoComplete="off"
-                className="h-12 w-full rounded-lg border bg-background pr-3 pl-11 text-base text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              />
-            </div>
+    <div className="flex flex-col gap-5">
+      <form onSubmit={onSubmit} className="flex flex-col gap-3" role="search">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label htmlFor="knowledge-search" className="sr-only">
+            Describe the problem
+          </label>
+          <div className="relative flex-1">
+            <SearchIcon
+              className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <input
+              id="knowledge-search"
+              type="search"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Describe the problem, or type a node, site or incident ID"
+              maxLength={500}
+              autoComplete="off"
+              className="h-13 w-full rounded-xl border bg-background pr-4 pl-12 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="h-13"
+              onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}
+            >
+              <SlidersHorizontal aria-hidden="true" />
+              Filters
+              {activeFilters > 0 && (
+                <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
+                  {activeFilters}
+                </span>
+              )}
+            </Button>
             <Button
               type="submit"
               size="lg"
-              className="h-12 px-6"
+              className="h-13 flex-1 px-6 sm:flex-none"
               disabled={text.trim().length < 2 || search.isFetching}
             >
               {search.isFetching ? (
@@ -139,207 +155,134 @@ export default function Search() {
               )}
               Search
             </Button>
-          </form>
+          </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <FilterSelect
-              label="Resolution"
-              value={resolution}
-              onChange={(v) => setResolution(v as ResolutionStatus | '')}
-              options={[
-                ['', 'Any'],
-                ['confirmed_in_conversation', 'Confirmed in conversation'],
-                ['suggested', 'Suggested'],
-                ['unknown', 'Unknown'],
-              ]}
-            />
-            <FilterSelect
-              label="Expert review"
-              value={approval}
-              onChange={(v) => setApproval(v as ApprovalStatus | '')}
-              options={[
-                ['', 'Any'],
-                ['unreviewed', 'Unreviewed'],
-                ['approved', 'Approved'],
-                ['rejected', 'Rejected'],
-              ]}
-            />
-            <label className="inline-flex items-center gap-1.5 text-muted-foreground">
+        {showFilters && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border bg-background px-4 py-3 text-sm">
+            <label className="flex items-center gap-2 text-muted-foreground">
+              Resolution
+              <select
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value as ResolutionStatus | '')}
+                className={selectClass}
+              >
+                <option value="">Any</option>
+                <option value="confirmed_in_conversation">Confirmed in chat</option>
+                <option value="suggested">Suggested</option>
+                <option value="unknown">Unclear</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-muted-foreground">
+              Review
+              <select
+                value={approval}
+                onChange={(e) => setApproval(e.target.value as ApprovalStatus | '')}
+                className={selectClass}
+              >
+                <option value="">Any</option>
+                <option value="unreviewed">Needs review</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-muted-foreground">
+              Valid on
+              <input
+                type="date"
+                value={asOf}
+                onChange={(e) => setAsOf(e.target.value)}
+                className={selectClass}
+                aria-label="Show knowledge that was valid on this date"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-muted-foreground">
               <input
                 type="checkbox"
                 checked={includeOutdated}
                 onChange={(e) => setIncludeOutdated(e.target.checked)}
                 className="size-4 accent-primary"
               />
-              Include outdated knowledge
+              Include outdated
             </label>
-            <label className="inline-flex items-center gap-1.5 text-muted-foreground">
-              Valid on
-              <input
-                type="date"
-                value={asOf}
-                onChange={(e) => setAsOf(e.target.value)}
-                className="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
-                aria-label="Show knowledge that was valid on this date"
-              />
-            </label>
+            <span className="text-xs text-muted-foreground">Applied on the next search.</span>
           </div>
+        )}
 
+        {!data && !search.isFetching && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Try:</span>
+            <span className="text-sm text-muted-foreground">Try</span>
             {EXAMPLES.map((example) => (
               <button
                 key={example}
                 type="button"
                 onClick={() => run(example)}
-                className="rounded-full border bg-muted/40 px-3 py-1 text-xs text-foreground transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="rounded-full border bg-background px-3 py-1 text-sm text-foreground transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 {example}
               </button>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </form>
 
       {search.isError && <Notice tone="error">{getErrorMessage(search.error)}</Notice>}
       {note && <Notice tone="warning">{note}</Notice>}
 
-      {!request && !search.isFetching && (
-        <EmptyHint icon={Sparkles}>
-          Search the knowledge that Elisa Echo discovered automatically in engineers&apos;
-          conversations. Run the simulation on the Live Discovery page first if nothing has been
-          discovered yet.
-        </EmptyHint>
-      )}
-
       {data && results.length === 0 && !search.isFetching && (
-        <EmptyHint icon={CircleDashed}>
-          No matching knowledge for “{data.query}”. Try describing the symptoms differently, or
-          search for an equipment, site or incident identifier.
-        </EmptyHint>
+        <EmptyState icon={SearchX} title={`Nothing found for “${data.query}”`}>
+          Describe the symptoms differently, or search for a node, site or incident ID.
+        </EmptyState>
       )}
 
       {results.length > 0 && (
-        <div className={cn('grid gap-6 lg:grid-cols-5', search.isFetching && 'opacity-60')}>
-          <div className="flex flex-col gap-3 lg:col-span-2">
+        <div className={cn('grid gap-5 lg:grid-cols-12', search.isFetching && 'opacity-60')}>
+          <div className="flex flex-col gap-2 lg:col-span-5">
             <p className="text-sm text-muted-foreground">
-              {results.length} result{results.length === 1 ? '' : 's'} for “{data?.query}”
-              {data?.retrieval.semantic === 'used' && ' · meaning + keywords + identifiers'}
+              {results.length} result{results.length === 1 ? '' : 's'}
             </p>
             {data?.related_groups.map((g) => (
               <Link
                 key={g.id}
-                to={`/network?group=${g.id}`}
-                className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 hover:bg-sky-100"
+                to={`/knowledge?group=${g.id}`}
+                className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 hover:bg-sky-100"
               >
-                <Network className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <span>
+                <Network className="size-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
                   <span className="font-medium">{groupHeadline(g)}</span>
                   {g.conflict_count > 0 && ', with conflicting reports'}
-                  <span className="block text-xs text-sky-900/80">
-                    {g.title} · open the grouped view in Knowledge Network
-                  </span>
                 </span>
+                <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
               </Link>
             ))}
-            {results.map((result, index) => (
-              <ResultCard
-                key={result.id}
-                group={data?.related_groups.find((g) => g.id === result.group_id)}
-                result={result}
-                position={index + 1}
-                selected={result.id === selected?.id}
-                onSelect={() => setSelectedId(result.id)}
-              />
-            ))}
-            <p className="text-xs text-muted-foreground">{data?.access_note}</p>
+            <ul className="flex flex-col gap-2" aria-label="Search results">
+              {results.map((result) => (
+                <li key={result.id}>
+                  <ResultRow
+                    result={result}
+                    group={data?.related_groups.find((g) => g.id === result.group_id)}
+                    selected={result.id === selected?.id}
+                    onSelect={() => setSelectedId(result.id)}
+                  />
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="lg:col-span-3">{selected && <ResultDetail result={selected} />}</div>
+          <div className="lg:col-span-7">{selected && <ResultPanel result={selected} />}</div>
         </div>
       )}
     </div>
   )
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  options: [string, string][]
-}) {
-  return (
-    <label className="flex items-center gap-2 text-muted-foreground">
-      {label}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 rounded-md border bg-background px-2 text-sm text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-      >
-        {options.map(([v, text]) => (
-          <option key={v} value={v}>
-            {text}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
-function ResolutionBadge({ status }: { status: ResolutionStatus }) {
-  const confirmed = status === 'confirmed_in_conversation'
-  const Icon = confirmed ? CircleCheck : CircleDashed
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium',
-        confirmed
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-          : 'bg-muted text-foreground',
-      )}
-    >
-      <Icon className="size-3.5" aria-hidden="true" />
-      {resolutionLabels[status]}
-    </span>
-  )
-}
-
-function ApprovalBadge({ status }: { status: ApprovalStatus }) {
-  return (
-    <Badge variant="outline">
-      {status === 'approved'
-        ? 'Expert-approved'
-        : status === 'rejected'
-          ? 'Rejected by expert'
-          : 'Not expert-reviewed'}
-    </Badge>
-  )
-}
-
-function relevance(ranking: SearchRanking): string[] {
-  const parts: string[] = []
-  if (ranking.semantic_similarity !== null) {
-    parts.push(`Similar meaning (${Math.round(ranking.semantic_similarity * 100)}%)`)
-  }
-  if (ranking.keyword_rank !== null) parts.push('Shared keywords')
-  if (ranking.matched_identifiers.length > 0) parts.push('Exact identifier match')
-  return parts
-}
-
-function ResultCard({
+function ResultRow({
   result,
   group,
-  position,
   selected,
   onSelect,
 }: {
   result: SearchResult
   group?: GroupBrief
-  position: number
   selected: boolean
   onSelect: () => void
 }) {
@@ -349,52 +292,29 @@ function ResultCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        'flex flex-col gap-2 rounded-xl border bg-card p-4 text-left transition-colors',
+        'flex w-full flex-col gap-1.5 rounded-xl border bg-card px-4 py-3 text-left transition-colors',
         'focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none',
-        selected ? 'border-primary/50 ring-1 ring-primary/30' : 'hover:bg-muted/40',
+        selected ? 'border-primary/60 ring-1 ring-primary/30' : 'hover:bg-muted/40',
       )}
     >
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-          {position}
+      <span className="flex items-start justify-between gap-2">
+        <span className="font-medium text-foreground">{result.title}</span>
+        <span className="flex shrink-0 gap-1">
+          <OutdatedBadge validTo={result.valid_to} />
+          <KnowledgeTypeBadge type={result.knowledge_type} />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-foreground">{result.title}</p>
-          <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-            {result.problem_description}
-          </p>
-        </div>
-      </div>
-      {result.symptoms.length > 0 && (
-        <p className="line-clamp-1 text-xs text-muted-foreground">
-          Symptoms: {result.symptoms.slice(0, 2).join('; ')}
-        </p>
-      )}
+      </span>
       {result.resolution && (
-        <p className="line-clamp-2 text-sm text-foreground">
-          <span className="font-medium">Fix: </span>
-          {result.resolution}
-        </p>
+        <span className="line-clamp-2 text-sm text-foreground/80">{result.resolution}</span>
       )}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <OutdatedBadge validTo={result.valid_to} />
-        <KnowledgeTypeBadge type={result.knowledge_type} />
+      <EntityChips links={result.entity_links} max={3} />
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <ResolutionBadge status={result.resolution_status} />
-        <ApprovalBadge status={result.approval_status} />
-        {[...result.equipment_identifiers, ...result.incident_numbers].map((id) => (
-          <Badge key={id} variant="secondary" className="font-mono">
-            {id}
-          </Badge>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <ReviewBadge status={result.approval_status} />
         <span className="inline-flex items-center gap-1">
           <MessageSquareQuote className="size-3.5" aria-hidden="true" />
-          {result.evidence_status === 'missing'
-            ? 'No supporting messages'
-            : `${result.evidence.length} supporting message${result.evidence.length === 1 ? '' : 's'}`}
+          {uniqueMessages(result).length} message{uniqueMessages(result).length === 1 ? '' : 's'}
         </span>
-        <span>{relevance(result.ranking).join(' · ')}</span>
         {result.feedback && result.feedback.sessions > 0 && (
           <span
             className={cn(
@@ -403,235 +323,152 @@ function ResultCard({
             )}
           >
             <Users className="size-3.5" aria-hidden="true" />
-            {feedbackSentence(result.feedback)}
+            {result.feedback.counts.resolved} worked · {result.feedback.counts.not_resolved} did not
           </span>
         )}
-        {group && (
-          <span className="inline-flex items-center gap-1 text-sky-800">
-            <Network className="size-3.5" aria-hidden="true" />
-            Part of a group of {group.case_count} related incidents
-          </span>
-        )}
-      </div>
+        {group && <span className="text-sky-800">{group.case_count} related cases</span>}
+      </span>
     </button>
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function ResultPanel({ result }: { result: SearchResult }) {
+  const messages = uniqueMessages(result)
+  const evidence = messages.filter((m) => !m.deleted_at_source).slice(0, 3)
+  const problemParam = encodeURIComponent(result.problem_description)
   return (
-    <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        {title}
-      </h3>
-      {children}
-    </section>
-  )
-}
-
-function ResultDetail({ result }: { result: SearchResult }) {
-  const confirmed = result.resolution_status === 'confirmed_in_conversation'
-  const position = new Map(result.evidence.map((e, i) => [e.message_id, i + 1]))
-
-  return (
-    <Card className="lg:sticky lg:top-20">
-      <CardHeader>
-        <CardTitle className="text-lg">{result.title}</CardTitle>
-        <CardDescription className="flex flex-wrap items-center gap-1.5 pt-1">
-          <ResolutionBadge status={result.resolution_status} />
-          <ApprovalBadge status={result.approval_status} />
-          <span className="text-xs">Updated {formatTime(result.updated_at)}</span>
-        </CardDescription>
-      </CardHeader>
+    <Card className="lg:sticky lg:top-24">
       <CardContent className="flex flex-col gap-5">
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" asChild>
-            <Link to={`/troubleshoot?problem=${encodeURIComponent(result.problem_description)}`}>
-              <Workflow aria-hidden="true" />
-              Build a troubleshooting guide
-            </Link>
-          </Button>
-          <Button size="sm" variant="outline" asChild>
-            <Link to={`/knowledge?item=${result.id}`}>Open in Knowledge Base</Link>
-          </Button>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <OutdatedBadge validTo={result.valid_to} />
+            <KnowledgeTypeBadge type={result.knowledge_type} />
+            <ResolutionBadge status={result.resolution_status} />
+            <ReviewBadge status={result.approval_status} />
+          </div>
+          <h2 className="text-xl font-semibold text-foreground">{result.title}</h2>
+          <EntityChips links={result.entity_links} max={6} />
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link to={`/troubleshoot?problem=${problemParam}`}>
+                <Workflow aria-hidden="true" />
+                Start troubleshooting
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to={`/knowledge?item=${result.id}`}>
+                View details
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
         </div>
-        {result.approval_status !== 'approved' && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <span>
-              {confirmed
-                ? 'Engineers reported in chat that this fix worked. It has not been reviewed or approved as an operational procedure. Check that it applies before using it.'
-                : 'This fix was suggested in a conversation but nobody confirmed that it worked.'}
-            </span>
+
+        {result.superseded_by && (
+          <Notice tone="warning">
+            Outdated since {formatTime(result.valid_to)}. Replaced by{' '}
+            <Link
+              to={`/knowledge?item=${result.superseded_by.id}`}
+              className="font-medium underline"
+            >
+              {result.superseded_by.title}
+            </Link>
+            .
+          </Notice>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <SectionTitle>Problem</SectionTitle>
+            <p className="text-sm text-foreground">{result.problem_description}</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <SectionTitle>
+              {result.resolution_status === 'confirmed_in_conversation'
+                ? 'Fix (confirmed in chat)'
+                : 'Suggested fix'}
+            </SectionTitle>
+            <p className="text-sm font-medium text-foreground">
+              {result.resolution ?? 'No fix recorded'}
+            </p>
+            {result.applicability_conditions.slice(0, 2).map((c) => (
+              <p key={c} className="text-sm text-muted-foreground">
+                · {c}
+              </p>
+            ))}
+          </div>
+        </div>
+
+        {result.feedback && result.feedback.sessions > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <SectionTitle>Used since (self-reported)</SectionTitle>
+            <p className="text-sm text-foreground">{feedbackSentence(result.feedback)}</p>
+            {result.feedback.condition_notes.length > 0 && (
+              <p className="text-sm text-amber-900">
+                Differs by condition: {result.feedback.condition_notes.join('; ')}
+              </p>
+            )}
           </div>
         )}
 
-        {result.feedback && result.feedback.sessions > 0 && (
-          <Section title="Real-world feedback (self-reported)">
-            <p className="text-sm text-foreground">{feedbackSentence(result.feedback)}</p>
-            {result.feedback.condition_notes.length > 0 && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                <p className="font-medium">
-                  Not universally applicable: outcomes differ by condition
-                </p>
-                <ul className="list-disc pl-5">
-                  {result.feedback.condition_notes.map((n) => (
-                    <li key={n}>{n}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <Link
-              to={`/knowledge?item=${result.id}#validation`}
-              className="text-xs text-muted-foreground underline hover:text-foreground"
-            >
-              See the detailed feedback history
-            </Link>
-          </Section>
-        )}
-
-        <ContextSection context={result} />
-
-        <Section title="Problem">
-          <p className="text-sm text-foreground">{result.problem_description}</p>
-          {result.symptoms.length > 0 && (
-            <ul className="list-disc pl-5 text-sm text-muted-foreground">
-              {result.symptoms.map((s) => (
-                <li key={s}>{s}</li>
-              ))}
-            </ul>
-          )}
-          {result.root_cause && (
-            <p className="text-sm text-muted-foreground">Root cause: {result.root_cause}</p>
-          )}
-        </Section>
-
-        {result.resolution && (
-          <Section
-            title={confirmed ? 'Resolution (confirmed in conversation)' : 'Suggested resolution'}
-          >
-            <p className="text-sm font-medium text-foreground">{result.resolution}</p>
-          </Section>
-        )}
-
-        {result.attempted_actions.length > 0 && (
-          <Section title="Troubleshooting history">
-            <ol className="flex flex-col gap-2">
-              {result.attempted_actions.map((action, i) => (
-                <li
-                  key={`${action.action}-${i}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2"
-                >
-                  <span className="text-sm text-foreground">{action.action}</span>
-                  <span className="flex items-center gap-2">
-                    {action.message_ids
-                      .filter((id) => position.has(id))
-                      .map((id) => (
-                        <a
-                          key={id}
-                          href={`#evidence-${id}`}
-                          className="rounded border bg-muted px-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          #{position.get(id)}
-                        </a>
-                      ))}
-                    <Badge variant={action.outcome === 'successful' ? 'default' : 'outline'}>
-                      {outcomeLabels[action.outcome]}
-                    </Badge>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </Section>
-        )}
-
-        {result.applicability_conditions.length > 0 && (
-          <Section title="Applicability and warnings">
-            <ul className="list-disc pl-5 text-sm text-foreground">
-              {result.applicability_conditions.map((c) => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-          </Section>
-        )}
-
-        {result.missing_information.length > 0 && (
-          <Section title="Missing information">
-            <ul className="list-disc pl-5 text-sm text-muted-foreground">
-              {result.missing_information.map((m) => (
-                <li key={m}>{m}</li>
-              ))}
-            </ul>
-          </Section>
-        )}
-
-        <Section title="Original supporting messages">
-          {result.evidence_status === 'missing' ? (
-            <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-              No supporting messages are linked to this knowledge. Treat it with extra caution.
+        <div className="flex flex-col gap-2">
+          <SectionTitle>
+            Evidence ({messages.length} message{messages.length === 1 ? '' : 's'})
+          </SectionTitle>
+          {evidence.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No supporting messages. Use with caution.
             </p>
           ) : (
-            <ol className="flex flex-col gap-3">
-              {result.evidence.map((e, i) => (
-                <li key={`${e.message_id}-${e.evidence_type}`} id={`evidence-${e.message_id}`}>
-                  <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-xs">
-                    <span className="font-mono text-muted-foreground">#{i + 1}</span>
+            <ol className="flex flex-col gap-2">
+              {evidence.map((e) => (
+                <li key={e.message_id} className="rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="mb-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">{e.author}</span>
-                    <span className="text-muted-foreground">{formatTime(e.sent_at)}</span>
-                    <Badge variant="outline">{evidenceLabels[e.evidence_type]}</Badge>
-                  </div>
-                  <blockquote className="rounded-lg border-l-2 border-primary/40 bg-muted/40 px-3 py-2 text-sm whitespace-pre-wrap text-foreground">
-                    {e.deleted_at_source ? (
-                      <span className="text-muted-foreground italic">
-                        Message deleted at the source; text no longer shown.
-                      </span>
-                    ) : (
-                      e.excerpt
-                    )}
-                  </blockquote>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {e.source_name ?? 'Unknown source'}
-                    {e.thread_title && ` · ${e.thread_title}`}
-                    {e.explanation && ` · ${e.explanation}`}
+                    <SourceBadge type={e.source_type} />
+                    <span>{formatTime(e.sent_at)}</span>
+                    <span>· {e.roles.map((r) => evidenceLabels[r]).join(', ')}</span>
+                  </p>
+                  <p className="line-clamp-3 text-sm whitespace-pre-wrap text-foreground">
+                    {e.excerpt}
                   </p>
                 </li>
               ))}
             </ol>
           )}
-        </Section>
+          {messages.length > evidence.length && (
+            <Link
+              to={`/knowledge?item=${result.id}`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              All evidence and details
+            </Link>
+          )}
+        </div>
 
-        <p className="text-xs text-muted-foreground">
-          Ranking: {result.ranking.matched_by.join(' + ') || 'n/a'} · fusion score{' '}
-          {result.ranking.score.toFixed(4)}
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <History className="size-3.5 shrink-0" aria-hidden="true" />
+          Valid from {result.valid_from ? formatTime(result.valid_from) : 'unknown'}
+          {result.valid_to ? ` until ${formatTime(result.valid_to)}` : ', still believed true'} ·
+          matched by {result.ranking.matched_by.join(', ') || 'n/a'}
           {result.ranking.matched_identifiers.length > 0 &&
-            ` · identifiers ${result.ranking.matched_identifiers.join(', ')}`}
+            ` (${result.ranking.matched_identifiers.join(', ')})`}
         </p>
       </CardContent>
     </Card>
   )
 }
 
-function Notice({ tone, children }: { tone: 'warning' | 'error'; children: ReactNode }) {
-  return (
-    <div
-      role="alert"
-      className={cn(
-        'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm',
-        tone === 'error'
-          ? 'border-red-200 bg-red-50 text-red-800'
-          : 'border-amber-200 bg-amber-50 text-amber-900',
-      )}
-    >
-      <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <div>{children}</div>
-    </div>
-  )
-}
-
-function EmptyHint({ icon: Icon, children }: { icon: typeof Sparkles; children: ReactNode }) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-12 text-center text-sm text-muted-foreground">
-      <Icon className="size-6" aria-hidden="true" />
-      <p className="max-w-lg">{children}</p>
-    </div>
-  )
+/** Evidence grouped by message: one entry per message with all the roles it was cited for. */
+function uniqueMessages(result: SearchResult) {
+  const byId = new Map<string, SearchResult['evidence'][number] & { roles: EvidenceType[] }>()
+  for (const e of result.evidence) {
+    const existing = byId.get(e.message_id)
+    if (existing) {
+      if (!existing.roles.includes(e.evidence_type)) existing.roles.push(e.evidence_type)
+    } else {
+      byId.set(e.message_id, { ...e, roles: [e.evidence_type] })
+    }
+  }
+  return [...byId.values()]
 }

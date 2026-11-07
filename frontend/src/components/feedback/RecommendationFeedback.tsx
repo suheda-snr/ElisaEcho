@@ -379,8 +379,7 @@ function FeedbackForm({
 
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        Saved as a self-reported outcome. It does not approve the knowledge; independent
-        verification needs an authorized review.
+        Saved as self-reported. It never changes the knowledge's approval.
       </p>
       <Button type="submit" size="sm" className="w-fit" disabled={!ready || mutation.isPending}>
         {saved ? 'Save correction' : 'Save feedback'}
@@ -421,4 +420,17 @@ function Choice({
       {hint && <span className="block text-xs font-normal text-muted-foreground">{hint}</span>}
     </button>
   )
+}
+
+/** Feedback for one step, shown right after the engineer performs it. */
+export function StepFeedback({
+  session,
+  node,
+}: {
+  session: TroubleshootingSession
+  node: GuideNode
+}) {
+  const feedback = useSessionFeedback(session.id)
+  if (node.knowledge_item_ids.length === 0) return null
+  return <NodeFeedback key={node.id} session={session} node={node} existing={feedback.data ?? []} />
 }

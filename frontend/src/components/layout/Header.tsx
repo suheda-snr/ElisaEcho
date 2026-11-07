@@ -1,6 +1,5 @@
-import { ChevronRight, Menu } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { useState } from 'react'
-import { useLocation } from 'react-router'
 
 import { BackendStatus } from '@/components/BackendStatus'
 import { Brand } from '@/components/layout/Brand'
@@ -14,13 +13,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { navItemFor } from '@/lib/navigation'
 
 /** Slim top bar: mobile menu, breadcrumb and connection status. Page titles live in PageHeader. */
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { pathname } = useLocation()
-  const current = navItemFor(pathname)
 
   return (
     <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6">
@@ -47,18 +43,8 @@ export function Header() {
         </SheetContent>
       </Sheet>
 
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
-        <span className="text-muted-foreground">Elisa Echo</span>
-        {current && current.to !== '/' && (
-          <>
-            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="truncate font-medium text-foreground">
-              {current.step ? `${current.step}. ` : ''}
-              {current.label}
-            </span>
-          </>
-        )}
-      </nav>
+      {/* Page titles live in PageHeader; the top bar only holds the menu and status. */}
+      <div className="flex-1" />
 
       <BackendStatus />
     </header>

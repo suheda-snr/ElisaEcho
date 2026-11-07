@@ -45,7 +45,7 @@ function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
       <div className="mb-1 flex items-center gap-1.5">
         <span
           className={cn(
-            'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+            'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium',
             style.chip,
           )}
         >
@@ -53,13 +53,13 @@ function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
           {style.label}
         </span>
         {active && (
-          <span className="text-[10px] font-semibold text-primary uppercase">Current</span>
+          <span className="text-[11px] font-semibold text-primary uppercase">Current</span>
         )}
       </div>
-      <p className="text-xs leading-snug font-medium text-foreground">{node.title}</p>
+      <p className="text-sm leading-snug font-medium text-foreground">{node.title}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         {support && (
-          <span className={cn('rounded border px-1 text-[10px]', support.className)}>
+          <span className={cn('rounded border px-1 text-[11px]', support.className)}>
             {support.label}
           </span>
         )}
@@ -137,19 +137,27 @@ export function GuideFlow({
     }
   })
 
+  // Size the canvas to the graph so a small tree is not lost in a huge empty area.
+  const levels = new Set([...positions.values()].map((p) => p.y)).size
+  const height = Math.min(760, Math.max(320, levels * 150 + 60))
+
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={nodeTypes}
-      fitView
-      fitViewOptions={{ padding: 0.15 }}
-      minZoom={0.3}
-      nodesConnectable={false}
-      onNodeClick={(_, node) => onSelect(node.id)}
-    >
-      <Background />
-      <Controls showInteractive={false} />
-    </ReactFlow>
+    <div className="w-full overflow-hidden rounded-lg border bg-background" style={{ height }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.08, maxZoom: 1.1 }}
+        minZoom={0.25}
+        maxZoom={1.6}
+        nodesConnectable={false}
+        proOptions={{ hideAttribution: true }}
+        onNodeClick={(_, node) => onSelect(node.id)}
+      >
+        <Background />
+        <Controls showInteractive={false} />
+      </ReactFlow>
+    </div>
   )
 }

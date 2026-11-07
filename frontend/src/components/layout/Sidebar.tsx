@@ -11,9 +11,6 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto p-3">
         <SidebarNav />
       </div>
-      <div className="border-t border-sidebar-border px-5 py-4 text-xs leading-relaxed text-muted-foreground">
-        Demo with synthetic conversations. Decision support only; nothing is executed.
-      </div>
     </aside>
   )
 }

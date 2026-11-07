@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
 
 import { AppLayout } from '@/components/layout/AppLayout'
+import { ExplorerRedirect } from '@/components/layout/ExplorerRedirect'
 
 // Each page is code-split so heavy libraries (React Flow, Recharts) only load
 // on the routes that use them.
@@ -16,15 +17,15 @@ const router = createBrowserRouter([
     children: [
       { index: true, lazy: page(() => import('@/pages/Dashboard')) },
       { path: 'discovery', lazy: page(() => import('@/pages/LiveDiscovery')) },
-      { path: 'knowledge', lazy: page(() => import('@/pages/KnowledgeBase')) },
+      { path: 'knowledge', lazy: page(() => import('@/pages/KnowledgeExplorer')) },
       { path: 'integrations', lazy: page(() => import('@/pages/Integrations')) },
       // Old route of the page before it became Live Discovery.
       { path: 'capture', element: <Navigate to="/discovery" replace /> },
-      { path: 'search', lazy: page(() => import('@/pages/Search')) },
+      // Search, Knowledge Base and Knowledge Network are tabs of the Knowledge Explorer now.
+      { path: 'search', element: <ExplorerRedirect tab="search" /> },
       { path: 'troubleshoot', lazy: page(() => import('@/pages/Troubleshoot')) },
-      { path: 'network', lazy: page(() => import('@/pages/KnowledgeNetwork')) },
-      // The placeholder Knowledge Graph page became the Knowledge Network.
-      { path: 'graph', element: <Navigate to="/network" replace /> },
+      { path: 'network', element: <ExplorerRedirect tab="relationships" /> },
+      { path: 'graph', element: <ExplorerRedirect tab="relationships" /> },
       { path: '*', lazy: page(() => import('@/pages/NotFound')) },
     ],
   },

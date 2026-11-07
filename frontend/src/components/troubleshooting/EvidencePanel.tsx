@@ -1,5 +1,6 @@
 import { CircleAlert, ShieldAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 
 import { evidenceLabels, formatTime, resolutionLabels } from '@/components/discovery/labels'
 import { nodeTypeStyle, supportStyle } from '@/components/troubleshooting/nodeStyles'
@@ -68,10 +69,7 @@ export function EvidencePanel({ guide, node }: { guide: Guide; node: GuideNode |
       {node.requires_manual_verification && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <span>
-            Not an approved procedure. Verify it applies to your equipment and follow your
-            organization&apos;s authorization and change-management procedures before acting.
-          </span>
+          <span>Not an approved procedure: check it applies and follow your change process.</span>
         </div>
       )}
 
@@ -102,7 +100,7 @@ export function EvidencePanel({ guide, node }: { guide: Guide; node: GuideNode |
         </Section>
       )}
 
-      <Section title="Original source messages">
+      <Section title="Source messages">
         {node.evidence.length === 0 ? (
           <p className="rounded-lg border border-dashed px-3 py-3 text-sm text-muted-foreground">
             {node.node_type === 'start' ||
@@ -145,7 +143,12 @@ export function EvidencePanel({ guide, node }: { guide: Guide; node: GuideNode |
           <ul className="flex flex-col gap-2">
             {knowledge.map((k) => (
               <li key={k.id} className="rounded-lg border bg-background p-3 text-sm">
-                <p className="font-medium text-foreground">{k.title}</p>
+                <Link
+                  to={`/knowledge?item=${k.id}`}
+                  className="font-medium text-foreground hover:underline"
+                >
+                  {k.title}
+                </Link>
                 <p className="text-xs text-muted-foreground">
                   {k.conversation ?? 'Unknown conversation'}
                   {k.equipment_identifiers.length > 0 && ` · ${k.equipment_identifiers.join(', ')}`}

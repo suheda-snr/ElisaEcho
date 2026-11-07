@@ -38,9 +38,9 @@ export function RelatedKnowledgeSection({ itemId }: { itemId: string }) {
             </span>
           </div>
           <Button size="sm" variant="outline" asChild>
-            <Link to={`/network?group=${data.group.id}`}>
+            <Link to={`/knowledge?group=${data.group.id}`}>
               <Network aria-hidden="true" />
-              Open in Knowledge Network
+              Compare related cases
             </Link>
           </Button>
         </div>
@@ -68,8 +68,7 @@ export function RelatedKnowledgeSection({ itemId }: { itemId: string }) {
       )}
       {data && data.relationships.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Relationships are assessed by AI and checked against the cited messages. They are
-          suggestions for review, not approved knowledge.
+          AI-assessed and checked against the cited messages.
         </p>
       )}
     </section>

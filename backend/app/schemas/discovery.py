@@ -30,6 +30,8 @@ class DiscoveryMetrics(BaseModel):
     feedback_resolved: int = 0  # self-reported, one per session and knowledge item
     feedback_not_resolved: int = 0
     knowledge_with_conflicting_feedback: int = 0
+    linked_entities: int = 0  # distinct nodes, sites, unit classes and events knowledge is bound to
+    needs_review: int = 0  # knowledge not yet reviewed by an expert
 
 
 class SimulationStatus(BaseModel):

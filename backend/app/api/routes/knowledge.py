@@ -27,8 +27,17 @@ async def list_knowledge(
         resolution_status=resolution_status,
         approval_status=approval_status,
     )
+    summaries = []
+    for item in items:
+        summary = KnowledgeItemSummary.model_validate(item)
+        thread = item.candidate.thread if item.candidate else None
+        if thread is not None:
+            summary.conversation = thread.title
+            summary.source_type = thread.source.source_type.value if thread.source else None
+            summary.source_name = thread.source.name if thread.source else None
+        summaries.append(summary)
     return Page[KnowledgeItemSummary](
-        items=[KnowledgeItemSummary.model_validate(item) for item in items],
+        items=summaries,
         total=total,
         limit=page.limit,
         offset=page.offset,

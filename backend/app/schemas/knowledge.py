@@ -83,6 +83,11 @@ class KnowledgeItemSummary(ORMModel):
     valid_to: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    # Filled by the list endpoint: where it was discovered and what it is bound to.
+    source_type: str | None = None
+    source_name: str | None = None
+    conversation: str | None = None
+    entity_links: list[EntityLinkRead] = []
 
 
 class DiscoveryInfo(BaseModel):
