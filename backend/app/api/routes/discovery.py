@@ -69,6 +69,7 @@ async def discovery_status(engine: EngineDep, settings: SettingsDep) -> Discover
         analysis=AnalysisQueueStatus(
             gemini_configured=gemini.configured,
             model=gemini.model,
+            embedding_model=engine.embedder_factory().model if engine.embedder_factory else None,
             queued=engine.queued,
             analyzing=engine.analyzing,
             debounce_seconds=engine.debounce_seconds,

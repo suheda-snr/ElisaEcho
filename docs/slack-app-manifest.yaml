@@ -1,0 +1,28 @@
+# Slack app manifest for Elisa Echo.
+# Use: https://api.slack.com/apps -> Create New App -> From a manifest -> pick workspace ->
+#      choose YAML, paste this file -> Create.
+# Read-only and least privilege: public channels the app is invited to, author names, no
+# DMs, no private channels, no posting. Socket Mode, so no public URL is needed.
+display_information:
+  name: Elisa Echo
+  description: Discovers operational troubleshooting knowledge in engineering conversations (read-only).
+  background_color: "#1d3fa8"
+features:
+  bot_user:
+    display_name: Elisa Echo
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - channels:history
+      - channels:read
+      - users:read
+settings:
+  event_subscriptions:
+    bot_events:
+      - message.channels
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false

@@ -79,9 +79,10 @@ Full design: [docs/architecture.md](docs/architecture.md).
     │   ├── models/       # SQLAlchemy ORM models
     │   ├── db/           # Async engine/session, declarative base, URL handling
     │   ├── ai/           # Gemini client and structured-output schema
+    │   ├── slack/        # Slack Socket Mode worker, event normalization, ingestion
     │   ├── seed/         # Synthetic demo conversations (`python -m app.seed`)
     │   └── core/         # config.py – typed settings
-    ├── alembic/          # Migrations: 0001 schema, 0002 full-text index, 0003 guides/sessions
+    ├── alembic/          # Migrations: 0001 schema, 0002 FTS index, 0003 guides, 0004 integrations
     ├── tests/            # Unit tests + integration/ (isolated test database)
     ├── requirements.txt      # Runtime dependencies
     ├── requirements-dev.txt  # + test tooling (installed in the dev image)
@@ -273,6 +274,8 @@ curl "http://localhost:8000/api/threads?limit=10"
 | POST   | `/api/troubleshooting/sessions/{id}/steps` | Answer, add an observation, or go back      |
 | POST   | `/api/troubleshooting/sessions/{id}/complete` | Record the outcome (resolved / unresolved) |
 | POST   | `/api/search`                 | Hybrid knowledge search with evidence and ranking signals |
+| GET    | `/api/integrations/slack/status`, `/health`, `/channels`, `/events` | Slack connector status, live token check, channels, activity |
+| POST   | `/api/integrations/slack/channels` | Enable/disable monitoring of a Slack channel (**development only**) |
 | GET    | `/api/discovery/status`       | Simulation progress, analysis queue, Gemini model, metrics |
 | GET    | `/api/discovery/events`       | Pipeline event log (`after` = last seen event id)     |
 | GET    | `/api/discovery/threads`      | Threads with their discovery result                   |
@@ -533,6 +536,109 @@ curl -X POST http://localhost:8000/api/troubleshooting/sessions/SESSION_ID/compl
 - The tree layout is a simple deterministic layering; very wide guides need zooming.
 - Gemini capacity varies: when a model is overloaded (HTTP 503) generation fails cleanly and can be
   retried; `GEMINI_MODEL` can be switched to another available model.
+
+## Slack integration (real conversations)
+
+Elisa Echo can discover knowledge from **real Slack conversations** in channels an administrator
+has authorized. Slack messages go through exactly the same pipeline as the simulated feed:
+
+```text
+Slack (Socket Mode) -> slack-worker -> messages/threads (existing ingestion)
+  -> debounced Gemini analysis -> validated knowledge + evidence -> embeddings
+  -> Knowledge Base, Search, Guided Troubleshooting
+```
+
+Nobody submits anything: once a channel is monitored, new messages are analyzed automatically.
+The simulated feed stays available as a fallback.
+
+### How it works
+
+- **Socket Mode, separate worker.** The `slack-worker` Compose service (same image as the backend,
+  no hot reload, so there is exactly one listener) opens a Socket Mode WebSocket to Slack. No
+  public URL or webhook is needed. Every event is acknowledged immediately; storing and analysis
+  happen afterwards in order.
+- **Verified status.** The worker calls `auth.test` before connecting and records its state and a
+  heartbeat in the database. The Integrations page shows *Connected* only when the credentials are
+  verified, the socket is open and the heartbeat is fresh. Tokens are never sent to the browser.
+- **Explicit allowlist.** Only channels enabled on the Integrations page (or listed in
+  `SLACK_CHANNEL_IDS`) are ingested; each is stored as a communication source. Public channels only.
+- **Threads.** A Slack thread (parent + replies) becomes one conversation thread
+  (`channel:thread_ts`); channels and workspaces never mix. Message IDs are Slack `ts` values, so
+  re-delivered events never create duplicates. Ask engineers to reply **in thread**.
+- **Filtering.** Bot messages (including Elisa Echo's own), joins/topic changes, DMs and empty
+  messages are ignored.
+- **Edits and deletions.** Edits update the stored message and re-queue the thread; deletions
+  mark the message deleted (its text is no longer shown) and re-analysis drops evidence that relied
+  on it.
+- **Evidence.** Authors come from `users.info`, links from `chat.getPermalink`; if a lookup fails
+  the field stays empty (nothing is invented). Knowledge from Slack is never auto-approved.
+
+**Step-by-step setup guide with troubleshooting: [docs/slack-setup.md](docs/slack-setup.md).**
+
+### Create the Slack app (one time, workspace admin)
+
+1. Open <https://api.slack.com/apps> → **Create New App** → **From scratch**; pick a test
+   workspace.
+2. **Socket Mode** → enable it. Create an **app-level token** with the scope `connections:write`
+   (starts with `xapp-`).
+3. **OAuth & Permissions** → **Bot Token Scopes** (least privilege):
+   - `channels:history` – read messages in public channels the app is in
+   - `channels:read` – list channels and their names
+   - `users:read` – show author names
+4. **Event Subscriptions** → enable → **Subscribe to bot events** → `message.channels`.
+5. **Install App** to the workspace and copy the **Bot User OAuth Token** (starts with `xoxb-`).
+6. In Slack, create a test channel (e.g. `#noc-test`) and invite the app: `/invite @YourAppName`.
+
+No private-channel (`groups:*`), DM (`im:*`) or write scopes are needed.
+
+### Configure Elisa Echo
+
+Add to `backend/.env` (never to `frontend/.env`):
+
+```env
+SLACK_ENABLED=true
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+# Optional: enable channels at worker start (otherwise use the Integrations page)
+SLACK_CHANNEL_IDS=C0123456789
+```
+
+`SLACK_SIGNING_SECRET` is only needed for HTTP request verification, which Socket Mode does not use.
+
+```bash
+docker compose up -d --build                                   # first time (new dependencies)
+docker compose up -d --force-recreate backend slack-worker     # after changing backend/.env
+docker compose logs -f slack-worker                            # watch the connector
+```
+
+Then open **Integrations** (http://localhost:5173/integrations): the Slack card should say
+**Connected** with your workspace name. Click **Monitor** next to the test channel (or enter its
+channel ID).
+
+### Live demo
+
+1. Integrations: Slack *Connected*, `#noc-test` *Monitored*.
+2. In Slack, engineer A posts in `#noc-test`: *"The network connection keeps dropping at Site 42."*
+3. Engineer B replies **in the thread**: *"Did you try restarting the affected service rather than
+   rebooting the whole router?"*
+4. Engineer A replies in the thread: *"Yes, restarting that service fixed it."*
+5. Within ~15 s (debounce) the conversation appears on **Live Discovery** labelled *Slack
+   #noc-test*, with the extracted knowledge; Integrations → *Connector activity* shows the messages,
+   the analysis and "Embedded for semantic search".
+6. **Search** with different words, e.g. *"customers lose connectivity, reboot didn't help"*, open
+   the result: the evidence shows the real Slack messages with links back to Slack.
+7. **Build a troubleshooting guide** from it.
+
+API: `GET /api/integrations/slack/status`, `/health` (live token check), `/channels`, `/events`;
+`POST /api/integrations/slack/channels` (development only).
+
+### Limitations
+
+- No user authentication yet; changing monitored channels is restricted to development mode.
+- Single workspace, public channels, messages that arrive while the worker is running (no history
+  backfill). Replies outside a thread are separate conversations.
+- After backend code changes, recreate the worker (`--force-recreate slack-worker`); it does not
+  hot-reload.
 
 ## Backend tests
 

@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ConversationThread, KnowledgeCandidate, KnowledgeItem, Message
+from app.models import CommunicationSource, ConversationThread, KnowledgeCandidate, KnowledgeItem, Message
 from app.models.enums import DetectionStatus, ResolutionStatus, ThreadProcessingStatus
 from app.schemas.discovery import CandidateSummary, DiscoveryMetrics, ThreadDiscovery
 from app.services.threads import list_threads
@@ -77,6 +77,14 @@ async def thread_discoveries(
         )
     } if candidates else {}
 
+    sources = {
+        src.id: src
+        for src in await session.scalars(
+            select(CommunicationSource).where(
+                CommunicationSource.id.in_({t.communication_source_id for t in threads}))
+        )
+    }
+
     by_thread: dict[uuid.UUID, KnowledgeCandidate] = {}
     for candidate in candidates:
         by_thread.setdefault(candidate.thread_id, candidate)
@@ -107,6 +115,8 @@ async def thread_discoveries(
             id=thread.id,
             title=thread.title,
             external_thread_id=thread.external_thread_id,
+            source_name=sources[thread.communication_source_id].name if thread.communication_source_id in sources else None,
+            source_type=sources[thread.communication_source_id].source_type if thread.communication_source_id in sources else None,
             processing_status=thread.processing_status,
             message_count=thread.message_count,
             last_message_at=thread.last_message_at,

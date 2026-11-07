@@ -53,6 +53,7 @@ export interface DiscoveryStatus {
   analysis: {
     gemini_configured: boolean
     model: string
+    embedding_model: string | null
     queued: number
     analyzing: number
     debounce_seconds: number
@@ -94,6 +95,8 @@ export interface ThreadDiscovery {
   id: string
   title: string | null
   external_thread_id: string
+  source_name: string | null
+  source_type: 'slack' | 'teams' | 'simulated' | null
   processing_status: ProcessingStatus
   message_count: number
   last_message_at: string | null
@@ -381,4 +384,59 @@ export interface CompleteSessionRequest {
   summary: string
   action_taken?: string
   observation?: string
+}
+
+// ---- integrations (Slack) ----------------------------------------------------------------
+
+export type SlackStatusValue =
+  | 'disabled'
+  | 'not_configured'
+  | 'worker_not_running'
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'error'
+
+export interface SlackChannel {
+  channel_id: string
+  name: string
+  monitored: boolean
+  bot_is_member: boolean | null
+  source_id: string | null
+}
+
+export interface SlackStatus {
+  enabled: boolean
+  bot_token_configured: boolean
+  app_token_configured: boolean
+  signing_secret_configured: boolean
+  status: SlackStatusValue
+  connected: boolean
+  credentials_verified: boolean
+  worker_running: boolean
+  connection_mode: string
+  workspace_id: string | null
+  workspace_name: string | null
+  monitored_channels: SlackChannel[]
+  last_event_at: string | null
+  last_ingested_at: string | null
+  heartbeat_at: string | null
+  last_error: string | null
+  next_steps: string[]
+}
+
+export interface SlackChannelList {
+  monitored: SlackChannel[]
+  available: SlackChannel[]
+  available_error: string | null
+}
+
+export interface IntegrationEvent {
+  id: string
+  created_at: string
+  kind: string
+  level: 'info' | 'success' | 'warning' | 'error'
+  message: string
+  channel_id: string | null
+  thread_id: string | null
 }

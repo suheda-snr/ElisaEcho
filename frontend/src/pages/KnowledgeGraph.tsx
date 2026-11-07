@@ -2,6 +2,7 @@ import { Background, Controls, ReactFlow, type Edge, type Node } from '@xyflow/r
 import '@xyflow/react/dist/style.css'
 import { Network } from 'lucide-react'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { PlannedFeature } from '@/components/PlannedFeature'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -23,33 +24,36 @@ const edges: Edge[] = [
 
 export default function KnowledgeGraph() {
   return (
-    <PlannedFeature
-      icon={Network}
-      title="Knowledge Graph"
-      description="Explore how knowledge connects equipment, incidents, network events and the experts behind them."
-      capabilities={[
-        'Interactive graph of captured knowledge',
-        'Navigate from equipment to related incidents',
-        'See which experts contributed to each topic',
-        'Spot gaps where knowledge is missing',
-      ]}
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle>Planned data model</CardTitle>
-          <CardDescription>
-            A schematic of the entities the graph will connect. It contains no real data.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-96 w-full overflow-hidden rounded-lg border bg-background">
-            <ReactFlow nodes={nodes} edges={edges} fitView nodesConnectable={false}>
-              <Background />
-              <Controls showInteractive={false} />
-            </ReactFlow>
-          </div>
-        </CardContent>
-      </Card>
-    </PlannedFeature>
+    <div className="flex flex-col gap-6">
+      <PageHeader description="Planned for the next phase: explore how knowledge connects equipment, incidents, conversations and the experts behind them." />
+      <PlannedFeature
+        icon={Network}
+        title="Planned for the next phase"
+        description="Explore how knowledge connects equipment, incidents, network events and the experts behind them."
+        capabilities={[
+          'Interactive graph of captured knowledge',
+          'Navigate from equipment to related incidents',
+          'See which experts contributed to each topic',
+          'Spot gaps where knowledge is missing',
+        ]}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>Planned data model</CardTitle>
+            <CardDescription>
+              A schematic of the entities the graph will connect. It contains no real data.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-96 w-full overflow-hidden rounded-lg border bg-background">
+              <ReactFlow nodes={nodes} edges={edges} fitView nodesConnectable={false}>
+                <Background />
+                <Controls showInteractive={false} />
+              </ReactFlow>
+            </div>
+          </CardContent>
+        </Card>
+      </PlannedFeature>
+    </div>
   )
 }

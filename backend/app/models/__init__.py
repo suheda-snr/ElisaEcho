@@ -9,6 +9,7 @@ from app.models.knowledge import (
     KnowledgeEvidence,
     KnowledgeItem,
 )
+from app.models.integrations import IntegrationEvent, IntegrationState
 from app.models.reference import Equipment, Incident
 from app.models.troubleshooting import (
     GuideEdge,
@@ -27,6 +28,8 @@ __all__ = [
     "GuideEdge",
     "GuideNode",
     "Incident",
+    "IntegrationEvent",
+    "IntegrationState",
     "KnowledgeCandidate",
     "KnowledgeChunk",
     "KnowledgeEvidence",

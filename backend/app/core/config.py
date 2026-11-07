@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     # as text prefix) and gemini-embedding-001 (task_type parameter).
     gemini_embedding_model: str = "gemini-embedding-2"
 
+    # Slack (Socket Mode). The slack-worker service connects only when SLACK_ENABLED=true and
+    # both tokens are set. Tokens never leave the backend.
+    slack_enabled: bool = False
+    slack_bot_token: SecretStr | None = None  # xoxb-...
+    slack_app_token: SecretStr | None = None  # xapp-... (connections:write)
+    # Only needed for HTTP Events API request verification; Socket Mode does not use it.
+    slack_signing_secret: SecretStr | None = None
+    # Optional bootstrap allowlist: channel IDs to enable for monitoring at worker start.
+    slack_channel_ids: Annotated[list[str], NoDecode] = []
+
     # Hybrid search.
     # Semantic matches are kept only if cosine similarity >= this floor AND within the margin
     # of the best match. Calibrated on the demo data with gemini-embedding-2 (unrelated
@@ -62,7 +72,7 @@ class Settings(BaseSettings):
     # Delay between simulated messages.
     simulation_message_interval_seconds: float = 2.0
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "slack_channel_ids", mode="before")
     @classmethod
     def split_cors_origins(cls, value: object) -> object:
         if isinstance(value, str):
@@ -74,12 +84,19 @@ class Settings(BaseSettings):
     def normalize_environment(cls, value: str) -> str:
         return value.strip().lower()
 
-    @field_validator("database_url", "gemini_api_key", mode="before")
+    @field_validator(
+        "database_url", "gemini_api_key", "slack_bot_token", "slack_app_token", "slack_signing_secret",
+        mode="before",
+    )
     @classmethod
     def empty_secret_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @property
+    def slack_configured(self) -> bool:
+        return self.slack_enabled and self.slack_bot_token is not None and self.slack_app_token is not None
 
     @property
     def is_development(self) -> bool:

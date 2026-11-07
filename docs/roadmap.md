@@ -134,6 +134,18 @@ knowledge and messages); per-user authorization.
 
 ---
 
+## Phase 6A: Real Slack integration (done)
+
+- `slack-worker` service: Socket Mode listener (slack-sdk), credential check, heartbeat,
+  automatic reconnect, immediate acknowledgement and ordered processing
+- Channel allowlist on communication sources; Slack threads mapped to conversation threads;
+  idempotent ingestion, edit and deletion handling, bot/system message filtering
+- Reuses the existing discovery engine (debounced Gemini analysis), embeddings, search and guides
+- Migration 0004 (integration_state, integration_events); Integrations page; status/channels/
+  events/health API
+
+---
+
 ## Phase 6: Consolidation, expert feedback and demo polish
 
 **Goal:** make the knowledge base trustworthy over time and prepare the demo.

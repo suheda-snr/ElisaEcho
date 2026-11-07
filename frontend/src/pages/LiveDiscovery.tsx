@@ -1,9 +1,12 @@
-import { BookOpenCheck, CircleAlert, Pause, Play, RotateCcw, Sparkles } from 'lucide-react'
+import { BookOpenText, CircleAlert, Pause, Play, RotateCcw } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 
 import { KnowledgePanel } from '@/components/discovery/KnowledgePanel'
 import { MessageList, ThreadList } from '@/components/discovery/ThreadFeed'
-import { formatClock, resolutionLabels } from '@/components/discovery/labels'
+import { formatClock } from '@/components/discovery/labels'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { Tabs } from '@/components/Tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +16,6 @@ import {
   useDiscoveryStatus,
   useDiscoveryThreads,
   useKnowledgeItem,
-  useKnowledgeItems,
   useSimulationControls,
   useThreadMessages,
 } from '@/hooks/useDiscovery'
@@ -32,17 +34,17 @@ export default function LiveDiscovery() {
   const live = isPipelineBusy(status.data)
   const threads = useDiscoveryThreads(live)
   const events = useDiscoveryEvents(live)
-  const knowledge = useKnowledgeItems(live)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [followLive, setFollowLive] = useState(true)
+  const [tab, setTab] = useState<'analysis' | 'activity'>('analysis')
   const controls = useSimulationControls(() => {
     events.reset()
     setSelectedId(null)
     setFollowLive(true)
   })
 
-  // The thread that most recently received a message.
+  // The conversation that most recently received a message.
   const activeId = useMemo(() => {
     for (let i = events.events.length - 1; i >= 0; i--) {
       const e = events.events[i]
@@ -57,9 +59,7 @@ export default function LiveDiscovery() {
   const selected = threadItems.find((t) => t.id === effectiveId) ?? null
 
   const messages = useThreadMessages(selected?.id ?? null, live)
-  const itemId = selected?.candidate?.knowledge_item_id ?? null
-  const item = useKnowledgeItem(itemId, live)
-
+  const item = useKnowledgeItem(selected?.candidate?.knowledge_item_id ?? null, live)
   const highlighted = useMemo(
     () => new Set(item.data?.evidence.map((e) => e.message.id) ?? []),
     [item.data],
@@ -77,6 +77,7 @@ export default function LiveDiscovery() {
   const analysis = status.data?.analysis
   const devControls = status.data?.development_controls ?? false
   const mutationError = controls.start.error ?? controls.stop.error ?? controls.reset.error
+  const progress = sim && sim.total > 0 ? (sim.delivered + sim.skipped_duplicates) / sim.total : 0
 
   const selectThread = (id: string) => {
     setSelectedId(id)
@@ -95,21 +96,9 @@ export default function LiveDiscovery() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-foreground">Live knowledge discovery</h2>
-              <p className="text-sm text-muted-foreground">
-                Messages arrive from a simulated chat channel. Elisa Echo groups them into
-                conversations and Gemini analyzes each conversation automatically. Nobody submits
-                anything by hand.
-              </p>
-            </div>
-            <Badge variant="outline">Synthetic demo data</Badge>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
+      <PageHeader
+        actions={
+          <>
             {sim?.running ? (
               <Button
                 variant="outline"
@@ -117,7 +106,7 @@ export default function LiveDiscovery() {
                 disabled={!devControls || controls.stop.isPending}
               >
                 <Pause aria-hidden="true" />
-                Stop simulation
+                Stop
               </Button>
             ) : (
               <Button
@@ -140,71 +129,87 @@ export default function LiveDiscovery() {
               Reset demo
             </Button>
             <Button variant="ghost" asChild>
-              <a href="#discovered-knowledge">
-                <BookOpenCheck aria-hidden="true" />
-                View discovered knowledge
-              </a>
+              <Link to="/knowledge">
+                <BookOpenText aria-hidden="true" />
+                Knowledge Base
+              </Link>
             </Button>
-            {!followLive && (
-              <Button variant="ghost" onClick={() => setFollowLive(true)}>
-                <Sparkles aria-hidden="true" />
-                Follow live activity
-              </Button>
-            )}
+          </>
+        }
+      >
+        {/* Status strip */}
+        <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:gap-6">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium text-foreground">
+                {sim?.running
+                  ? 'Simulated chat feed running'
+                  : sim?.finished_at
+                    ? 'Feed finished'
+                    : sim && sim.total === 0
+                      ? 'Ready: press Start simulation to stream synthetic chat messages'
+                      : 'Feed stopped'}
+              </span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {sim ? `${sim.delivered + sim.skipped_duplicates} / ${sim.total} messages` : '…'}
+                {sim &&
+                  sim.skipped_duplicates > 0 &&
+                  ` · ${sim.skipped_duplicates} duplicates ignored`}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${Math.round(progress * 100)}%` }}
+              />
+            </div>
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="secondary">
+              AI: {analysis ? `${analysis.analyzing} analyzing · ${analysis.queued} waiting` : '…'}
+            </Badge>
+            <Badge variant="outline" className="font-mono">
+              {analysis?.model ?? '…'}
+            </Badge>
+            <Badge variant="outline">Synthetic data</Badge>
+          </div>
+        </div>
+      </PageHeader>
 
-          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <Stat
-              label="Simulation"
-              value={
-                sim
-                  ? sim.running
-                    ? `Running · ${sim.delivered + sim.skipped_duplicates}/${sim.total}`
-                    : sim.finished_at
-                      ? 'Finished'
-                      : 'Stopped'
-                  : '…'
-              }
-            />
-            <Stat
-              label="Delivered (new / duplicate)"
-              value={sim ? `${sim.delivered} / ${sim.skipped_duplicates}` : '…'}
-            />
-            <Stat
-              label="Analysis queue"
-              value={analysis ? `${analysis.analyzing} running · ${analysis.queued} waiting` : '…'}
-            />
-            <Stat label="Model" value={analysis?.model ?? '…'} mono />
-          </dl>
-
+      {(status.isError ||
+        (analysis && !analysis.gemini_configured) ||
+        analysis?.paused_until ||
+        (status.data && !devControls) ||
+        mutationError != null) && (
+        <div className="flex flex-col gap-2">
           {status.isError && <Alert>{getErrorMessage(status.error)}</Alert>}
           {analysis && !analysis.gemini_configured && (
             <Alert>
-              Gemini is not configured (GEMINI_API_KEY is missing on the backend). Messages will
-              still be ingested, but no knowledge can be discovered until a key is added.
+              Gemini is not configured (GEMINI_API_KEY is missing on the backend). Messages are
+              still received, but no knowledge can be discovered.
             </Alert>
           )}
           {analysis?.paused_until && (
             <Alert>
-              Gemini calls are paused until {formatClock(analysis.paused_until)} because the API
-              quota is exhausted ({analysis.pause_reason}). Messages are still ingested; nothing is
-              guessed in the meantime.
+              AI analysis is paused until {formatClock(analysis.paused_until)} because the Gemini
+              quota is exhausted. Messages are still received; nothing is guessed meanwhile.
             </Alert>
           )}
           {status.data && !devControls && (
             <Alert>Simulation controls are only available in development.</Alert>
           )}
           {mutationError != null && <Alert>{getErrorMessage(mutationError)}</Alert>}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* 1. Conversations */}
+        <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Communication feed</CardTitle>
-            <CardDescription>Simulated Teams channel · Synthetic NOC chat (demo)</CardDescription>
+            <CardTitle>Conversations</CardTitle>
+            <CardDescription>Monitored Slack channels and the simulated feed</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="flex flex-col gap-3">
             {threads.isError ? (
               <Alert>{getErrorMessage(threads.error)}</Alert>
             ) : (
@@ -215,58 +220,73 @@ export default function LiveDiscovery() {
                 onSelect={selectThread}
               />
             )}
-            {selected && (
-              <div className="flex max-h-[28rem] flex-col gap-2 overflow-y-auto border-t pt-4">
-                <h3 className="sticky top-0 z-10 bg-card py-1 text-sm font-semibold text-foreground">
-                  {selected.title ?? selected.external_thread_id}
-                </h3>
+            {!followLive && sim?.running && (
+              <Button variant="ghost" size="sm" onClick={() => setFollowLive(true)}>
+                Follow live activity
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 2. Messages */}
+        <Card className="lg:col-span-4">
+          <CardHeader>
+            <CardTitle className="truncate">{selected?.title ?? 'Messages'}</CardTitle>
+            <CardDescription>
+              {selected
+                ? `${selected.message_count} messages · highlighted ones are cited as evidence`
+                : 'Select a conversation'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[36rem] overflow-y-auto pr-1">
+              {selected ? (
                 <MessageList
                   messages={messages.data?.items ?? []}
                   highlighted={highlighted}
                   isLoading={messages.isPending}
                 />
-              </div>
-            )}
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No conversations yet. Press Start simulation.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>AI knowledge discovery</CardTitle>
-            <CardDescription>
-              What Gemini extracted from the selected conversation, after server-side evidence
-              checks
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <KnowledgePanel
-              thread={selected}
-              item={item.data}
-              itemLoading={item.isPending}
-              itemError={item.error}
-              messages={messages.data?.items ?? []}
-              geminiConfigured={analysis?.gemini_configured ?? false}
-              onRetry={
-                devControls && selected ? () => controls.analyze.mutate(selected.id) : undefined
-              }
-              retrying={controls.analyze.isPending}
-              retryError={controls.analyze.error}
+        {/* 3. AI result + activity */}
+        <Card className="lg:col-span-5">
+          <CardHeader className="gap-3">
+            <Tabs
+              label="Discovery details"
+              value={tab}
+              onChange={setTab}
+              tabs={[
+                { value: 'analysis', label: 'AI analysis' },
+                { value: 'activity', label: 'Activity log', count: events.events.length },
+              ]}
             />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Pipeline activity</CardTitle>
-            <CardDescription>Live events from the backend</CardDescription>
           </CardHeader>
           <CardContent>
-            {events.events.length === 0 ? (
+            {tab === 'analysis' ? (
+              <KnowledgePanel
+                thread={selected}
+                item={item.data}
+                itemLoading={item.isPending}
+                itemError={item.error}
+                messages={messages.data?.items ?? []}
+                geminiConfigured={analysis?.gemini_configured ?? false}
+                onRetry={
+                  devControls && selected ? () => controls.analyze.mutate(selected.id) : undefined
+                }
+                retrying={controls.analyze.isPending}
+                retryError={controls.analyze.error}
+              />
+            ) : events.events.length === 0 ? (
               <p className="text-sm text-muted-foreground">No activity yet.</p>
             ) : (
-              <ol className="flex max-h-80 flex-col-reverse gap-1.5 overflow-y-auto text-sm">
+              <ol className="flex max-h-[36rem] flex-col-reverse gap-1.5 overflow-y-auto text-sm">
                 {events.events.map((e) => (
                   <li key={e.id} className="flex gap-2">
                     <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
@@ -284,53 +304,7 @@ export default function LiveDiscovery() {
             )}
           </CardContent>
         </Card>
-
-        <Card className="lg:col-span-3" id="discovered-knowledge">
-          <CardHeader>
-            <CardTitle>Discovered knowledge</CardTitle>
-            <CardDescription>
-              Stored in PostgreSQL · {knowledge.data?.total ?? 0} items · none approved
-              automatically
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {knowledge.isError ? (
-              <Alert>{getErrorMessage(knowledge.error)}</Alert>
-            ) : (knowledge.data?.items.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground">No knowledge discovered yet.</p>
-            ) : (
-              <ul className="flex flex-col divide-y">
-                {knowledge.data?.items.map((k) => (
-                  <li key={k.id} className="flex flex-wrap items-center gap-2 py-2.5">
-                    <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
-                      {k.title}
-                    </span>
-                    <Badge
-                      variant={
-                        k.resolution_status === 'confirmed_in_conversation' ? 'default' : 'outline'
-                      }
-                    >
-                      {resolutionLabels[k.resolution_status]}
-                    </Badge>
-                    <Badge variant="secondary">{k.approval_status}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
       </div>
-    </div>
-  )
-}
-
-function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-lg border bg-muted/40 px-3 py-2">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={cn('truncate font-medium text-foreground', mono && 'font-mono text-xs')}>
-        {value}
-      </dd>
     </div>
   )
 }

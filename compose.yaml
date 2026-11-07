@@ -18,6 +18,22 @@ services:
     volumes:
       - ./backend:/app
 
+  # Slack Socket Mode listener: a separate process using the backend image, so the API's
+  # hot reload never starts a second listener. It idles (reporting "disabled" or
+  # "not configured") until SLACK_ENABLED=true and both Slack tokens are set in backend/.env.
+  # After code changes: docker compose up -d --force-recreate slack-worker
+  slack-worker:
+    build: ./backend
+    command: ["python", "-m", "app.slack.worker"]
+    env_file:
+      - path: ./backend/.env
+        required: false
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    depends_on:
+      - backend
+
   frontend:
     build: ./frontend
     ports:

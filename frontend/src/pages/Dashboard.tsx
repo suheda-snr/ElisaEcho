@@ -1,128 +1,213 @@
-import { ArrowRight, CircleAlert, CircleCheck, LoaderCircle, RefreshCw } from 'lucide-react'
+import {
+  ArrowRight,
+  CircleAlert,
+  CircleCheck,
+  CircleDashed,
+  LoaderCircle,
+  Radar,
+} from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
+import { resolutionLabels } from '@/components/discovery/labels'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useDiscoveryStatus } from '@/hooks/useDiscovery'
-import { useHealth } from '@/hooks/useHealth'
+import { useDiscoveryStatus, useKnowledgeItems } from '@/hooks/useDiscovery'
+import { useDatabaseHealth, useHealth } from '@/hooks/useHealth'
+import { useRecentSessions } from '@/hooks/useTroubleshooting'
 import { navItems } from '@/lib/navigation'
+import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
 import type { DiscoveryMetrics } from '@/types/api'
 
-function ConnectionCard() {
-  const { data, error, isPending, isError, isFetching, refetch } = useHealth()
+export default function Dashboard() {
+  const status = useDiscoveryStatus()
+  const knowledge = useKnowledgeItems(false)
+  const sessions = useRecentSessions()
+  const metrics = status.data?.metrics ?? null
+  const metricsProblem = status.isError ? getErrorMessage(status.error) : status.data?.metrics_error
+
+  const stepValues: Record<string, { value: string; caption: string }> = {
+    '/discovery': {
+      value: metrics ? String(metrics.messages_processed) : '–',
+      caption: 'messages analyzed from chats',
+    },
+    '/knowledge': {
+      value: metrics ? String(metrics.knowledge_items) : '–',
+      caption: 'knowledge items with evidence',
+    },
+    '/search': {
+      value: metrics ? String(metrics.confirmed_resolutions) : '–',
+      caption: 'confirmed fixes searchable',
+    },
+    '/troubleshoot': {
+      value: sessions.data ? String(sessions.data.total) : '–',
+      caption: 'troubleshooting sessions saved',
+    },
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>API connection</CardTitle>
-        <CardDescription>Live result of GET /api/health</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {isPending ? (
-          <div className="flex items-center gap-3 text-amber-700">
-            <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
-            <span className="font-medium">Connecting…</span>
-          </div>
-        ) : isError ? (
-          <div className="flex items-start gap-3 text-red-700">
-            <CircleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            <div>
-              <p className="font-medium">Backend unavailable</p>
-              <p className="text-sm text-muted-foreground">{getErrorMessage(error)}</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-start gap-3 text-emerald-700">
-            <CircleCheck className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            <div>
-              <p className="font-medium">Backend connected</p>
-              <p className="text-sm text-muted-foreground">
-                {data.service} reports status “{data.status}”.
-              </p>
-            </div>
-          </div>
-        )}
-        <div>
-          <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
-            <RefreshCw className={isFetching ? 'animate-spin' : undefined} aria-hidden="true" />
-            Check again
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Elisa Echo"
+        description="Engineers already share how they fix network problems in chat. Elisa Echo finds that knowledge automatically, keeps the messages that prove it, and turns it into searchable fixes and step-by-step guides."
+        actions={
+          <Button asChild>
+            <Link to="/discovery">
+              <Radar aria-hidden="true" />
+              Start the live demo
+            </Link>
           </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+        }
+      />
 
-const tiles: { key: keyof DiscoveryMetrics; label: string; hint: string }[] = [
-  {
-    key: 'messages_processed',
-    label: 'Messages processed',
-    hint: 'Ingested from communication sources',
-  },
-  { key: 'threads_analyzed', label: 'Threads analyzed', hint: 'Conversations analyzed by Gemini' },
-  {
-    key: 'candidates_detected',
-    label: 'Knowledge candidates',
-    hint: 'Conversations with technical knowledge',
-  },
-  {
-    key: 'confirmed_resolutions',
-    label: 'Confirmed resolutions',
-    hint: 'Fix confirmed in conversation',
-  },
-  {
-    key: 'threads_failed',
-    label: 'Processing failures',
-    hint: 'Threads whose last analysis failed',
-  },
-]
+      <section aria-labelledby="how-it-works" className="flex flex-col gap-3">
+        <h2 id="how-it-works" className="text-sm font-semibold text-foreground">
+          How it works
+        </h2>
+        <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {navItems
+            .filter((item) => item.group === 'workflow')
+            .map((item) => (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  className="group flex h-full flex-col gap-3 rounded-xl border bg-card p-4 transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                      {item.step}
+                    </span>
+                    <span className="font-medium text-foreground">{item.label}</span>
+                    <ArrowRight
+                      className="ml-auto size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                  <p className="mt-auto flex items-baseline gap-1.5 border-t pt-3">
+                    <span className="text-2xl font-semibold text-foreground tabular-nums">
+                      {stepValues[item.to]?.value}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {stepValues[item.to]?.caption}
+                    </span>
+                  </p>
+                </Link>
+              </li>
+            ))}
+        </ol>
+      </section>
 
-function MetricTiles({ metrics }: { metrics: DiscoveryMetrics | null | undefined }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-      {tiles.map((tile) => (
-        <Card key={tile.key} size="sm">
-          <CardContent>
-            <p className="text-xs text-muted-foreground">{tile.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground tabular-nums">
-              {metrics ? metrics[tile.key].toLocaleString() : '–'}
+      {metricsProblem && (
+        <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <CircleAlert className="size-4" aria-hidden="true" />
+          Metrics unavailable: {metricsProblem}
+        </p>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <OutcomesCard metrics={metrics} loading={status.isPending} className="lg:col-span-2" />
+        <SystemStatusCard />
+      </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle>Latest discovered knowledge</CardTitle>
+            <CardDescription>
+              Found automatically in conversations. Not approved until an expert reviews it.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/knowledge">Open Knowledge Base</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {knowledge.isPending ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (knowledge.data?.items.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing discovered yet. Run the live demo to see knowledge appear here.
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{tile.hint}</p>
-          </CardContent>
-        </Card>
-      ))}
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {knowledge.data?.items.slice(0, 5).map((k) => (
+                <li key={k.id}>
+                  <Link
+                    to={`/knowledge?item=${k.id}`}
+                    className="flex flex-wrap items-center gap-2 py-2.5 hover:bg-muted/40"
+                  >
+                    <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                      {k.title}
+                    </span>
+                    <Badge
+                      variant={
+                        k.resolution_status === 'confirmed_in_conversation' ? 'default' : 'outline'
+                      }
+                    >
+                      {resolutionLabels[k.resolution_status]}
+                    </Badge>
+                    <Badge variant="secondary">
+                      {k.approval_status === 'approved' ? 'Expert-approved' : 'Not reviewed'}
+                    </Badge>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
-function OutcomesCard({ metrics }: { metrics: DiscoveryMetrics }) {
-  const rows = [
-    { outcome: 'Confirmed', conversations: metrics.confirmed_resolutions },
-    { outcome: 'Suggested', conversations: metrics.unverified_suggestions },
-    {
-      outcome: 'No fix yet',
-      conversations: Math.max(0, metrics.candidates_detected - metrics.knowledge_items),
-    },
-    { outcome: 'Ignored', conversations: metrics.conversations_ignored },
-    { outcome: 'Pending', conversations: metrics.threads_pending },
-  ]
+function OutcomesCard({
+  metrics,
+  loading,
+  className,
+}: {
+  metrics: DiscoveryMetrics | null
+  loading: boolean
+  className?: string
+}) {
+  const rows = metrics
+    ? [
+        { outcome: 'Confirmed fix', conversations: metrics.confirmed_resolutions },
+        { outcome: 'Suggested fix', conversations: metrics.unverified_suggestions },
+        {
+          outcome: 'Issue, no fix yet',
+          conversations: Math.max(0, metrics.candidates_detected - metrics.knowledge_items),
+        },
+        { outcome: 'Not relevant', conversations: metrics.conversations_ignored },
+        { outcome: 'Waiting', conversations: metrics.threads_pending },
+        { outcome: 'Failed', conversations: metrics.threads_failed },
+      ]
+    : []
   const empty = rows.every((r) => r.conversations === 0)
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
-        <CardTitle>Discovery outcomes</CardTitle>
-        <CardDescription>Conversations by what the analysis found</CardDescription>
+        <CardTitle>What the AI found in conversations</CardTitle>
+        <CardDescription>Each analyzed conversation, by outcome</CardDescription>
       </CardHeader>
       <CardContent>
-        {empty ? (
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : !metrics ? (
+          <p className="text-sm text-muted-foreground">
+            Not available without a database connection.
+          </p>
+        ) : empty ? (
           <p className="flex h-48 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-            No conversations yet. Start the simulation on the Live Discovery page.
+            No conversations yet. Start the live demo.
           </p>
         ) : (
-          <div className="h-48 w-full">
+          <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
@@ -130,7 +215,8 @@ function OutcomesCard({ metrics }: { metrics: DiscoveryMetrics }) {
                   dataKey="outcome"
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                  interval={0}
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                 />
                 <YAxis
                   allowDecimals={false}
@@ -150,11 +236,11 @@ function OutcomesCard({ metrics }: { metrics: DiscoveryMetrics }) {
                 />
                 <Bar
                   dataKey="conversations"
-                  isAnimationActive={false}
                   name="Conversations"
                   fill="var(--chart-1)"
                   radius={[4, 4, 0, 0]}
                   maxBarSize={40}
+                  isAnimationActive={false}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -165,79 +251,84 @@ function OutcomesCard({ metrics }: { metrics: DiscoveryMetrics }) {
   )
 }
 
-export default function Dashboard() {
-  const status = useDiscoveryStatus()
-  const metrics = status.data?.metrics
-  const modules = navItems.filter((item) => item.to !== '/')
-  const metricsProblem = status.isError ? getErrorMessage(status.error) : status.data?.metrics_error
-
+function StatusRow({
+  label,
+  ok,
+  children,
+}: {
+  label: string
+  ok: boolean | null
+  children: ReactNode
+}) {
+  const Icon = ok === null ? LoaderCircle : ok ? CircleCheck : CircleAlert
   return (
-    <div className="flex flex-col gap-6">
-      <section>
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-          Welcome to Elisa Echo
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Operational knowledge discovered automatically from engineers&apos; conversations,
-          preserved with the messages that prove it.
-        </p>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-foreground">Knowledge discovery</h2>
-        {metricsProblem && (
-          <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <CircleAlert className="size-4" aria-hidden="true" />
-            Metrics unavailable: {metricsProblem}
-          </p>
+    <li className="flex items-start gap-3 py-2.5">
+      <Icon
+        className={cn(
+          'mt-0.5 size-4 shrink-0',
+          ok === null
+            ? 'animate-spin text-muted-foreground'
+            : ok
+              ? 'text-emerald-600'
+              : 'text-amber-600',
         )}
-        <MetricTiles metrics={status.isPending ? undefined : metrics} />
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ConnectionCard />
-        {metrics ? (
-          <OutcomesCard metrics={metrics} />
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Discovery outcomes</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              {status.isPending ? 'Loading…' : 'Not available without a database connection.'}
-            </CardContent>
-          </Card>
-        )}
+        aria-hidden="true"
+      />
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">{children}</p>
       </div>
+    </li>
+  )
+}
 
-      <section>
-        <h2 className="mb-3 text-sm font-medium text-foreground">Modules</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {modules.map(({ to, label, description, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              className="group rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-              <Card className="h-full transition-shadow group-hover:shadow-md">
-                <CardContent className="flex items-start gap-4">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                    <Icon className="size-5" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground">{label}</p>
-                    <p className="text-sm text-muted-foreground">{description}</p>
-                  </div>
-                  <ArrowRight
-                    className="mt-1 size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </section>
-    </div>
+function SystemStatusCard() {
+  const api = useHealth()
+  const db = useDatabaseHealth()
+  const status = useDiscoveryStatus()
+  const analysis = status.data?.analysis
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>System status</CardTitle>
+        <CardDescription>Live checks of each component</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col divide-y">
+          <StatusRow label="API" ok={api.isPending ? null : api.isSuccess}>
+            {api.isError ? getErrorMessage(api.error) : 'FastAPI backend reachable'}
+          </StatusRow>
+          <StatusRow label="Database" ok={db.isPending ? null : db.data?.status === 'ok'}>
+            {db.data?.status === 'ok'
+              ? `Tiger Data PostgreSQL${db.data.pgvector ? ' · pgvector enabled' : ''}`
+              : (db.data?.detail ?? 'Unavailable')}
+          </StatusRow>
+          <StatusRow
+            label="AI analysis"
+            ok={!analysis ? null : analysis.gemini_configured && !analysis.paused_until}
+          >
+            {!analysis
+              ? 'Checking…'
+              : !analysis.gemini_configured
+                ? 'Gemini is not configured'
+                : analysis.paused_until
+                  ? `Paused (quota) until ${new Date(analysis.paused_until).toLocaleTimeString()}`
+                  : analysis.model}
+          </StatusRow>
+          <StatusRow
+            label="Semantic search"
+            ok={!analysis ? null : Boolean(analysis.embedding_model)}
+          >
+            {analysis?.embedding_model
+              ? `${analysis.embedding_model} · 768 dimensions`
+              : 'Not configured'}
+          </StatusRow>
+        </ul>
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CircleDashed className="size-3.5" aria-hidden="true" />
+          Synthetic demo data only
+        </p>
+      </CardContent>
+    </Card>
   )
 }

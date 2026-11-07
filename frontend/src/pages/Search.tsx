@@ -7,9 +7,10 @@ import {
   Search as SearchIcon,
   ShieldAlert,
   Sparkles,
+  Workflow,
 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 
 import {
   evidenceLabels,
@@ -17,6 +18,7 @@ import {
   outcomeLabels,
   resolutionLabels,
 } from '@/components/discovery/labels'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -91,17 +93,9 @@ export default function Search() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PageHeader description="Describe the problem in your own words. Matches by meaning, keywords and exact identifiers (equipment, sites, incidents), with the original messages behind every answer." />
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Search operational knowledge</h2>
-            <p className="text-sm text-muted-foreground">
-              Describe the problem in your own words. Elisa Echo matches by meaning, keywords and
-              exact identifiers (equipment, sites, incidents), and shows the original messages
-              behind every answer.
-            </p>
-          </div>
-
           <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row" role="search">
             <label htmlFor="knowledge-search" className="sr-only">
               Describe the problem
@@ -382,6 +376,17 @@ function ResultDetail({ result }: { result: SearchResult }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" asChild>
+            <Link to={`/troubleshoot?problem=${encodeURIComponent(result.problem_description)}`}>
+              <Workflow aria-hidden="true" />
+              Build a troubleshooting guide
+            </Link>
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <Link to={`/knowledge?item=${result.id}`}>Open in Knowledge Base</Link>
+          </Button>
+        </div>
         {result.approval_status !== 'approved' && (
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

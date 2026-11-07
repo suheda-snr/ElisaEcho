@@ -47,10 +47,22 @@ export function ThreadList({ threads, selectedId, activeId, onSelect }: ThreadLi
                 )}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-foreground">
+                <span className="line-clamp-2 block text-sm font-medium text-foreground">
                   {thread.title ?? thread.external_thread_id}
                 </span>
-                <span className="block text-xs text-muted-foreground">
+                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      'rounded px-1.5 font-medium',
+                      thread.source_type === 'slack'
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {thread.source_type === 'slack'
+                      ? `Slack ${thread.source_name ?? ''}`
+                      : 'Simulated'}
+                  </span>
                   {thread.message_count} messages · {processingLabels[thread.processing_status]}
                 </span>
               </span>

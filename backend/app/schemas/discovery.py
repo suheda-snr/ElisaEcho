@@ -8,6 +8,7 @@ from app.models.enums import (
     ApprovalStatus,
     DetectionStatus,
     ResolutionStatus,
+    SourceType,
     ThreadProcessingStatus,
 )
 
@@ -39,6 +40,7 @@ class SimulationStatus(BaseModel):
 class AnalysisQueueStatus(BaseModel):
     gemini_configured: bool
     model: str
+    embedding_model: str | None = None
     queued: int
     analyzing: int
     debounce_seconds: float
@@ -86,6 +88,8 @@ class ThreadDiscovery(BaseModel):
     id: uuid.UUID
     title: str | None
     external_thread_id: str
+    source_name: str | None = None
+    source_type: SourceType | None = None
     processing_status: ThreadProcessingStatus
     message_count: int
     last_message_at: datetime | None

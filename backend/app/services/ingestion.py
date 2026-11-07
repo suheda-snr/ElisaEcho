@@ -42,7 +42,8 @@ async def upsert_thread(session: AsyncSession, source_id: uuid.UUID, data: Threa
         )
         .on_conflict_do_update(
             index_elements=["communication_source_id", "external_thread_id"],
-            set_={"title": data.title},
+            # Keep the known title when a later message carries none (e.g. a Slack reply).
+            set_={"title": func.coalesce(data.title, ConversationThread.title)},
         )
         .returning(ConversationThread.id)
     )

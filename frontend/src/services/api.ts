@@ -2,6 +2,10 @@ import axios from 'axios'
 
 import type {
   AnalysisResult,
+  IntegrationEvent,
+  SlackChannel,
+  SlackChannelList,
+  SlackStatus,
   CompleteSessionRequest,
   Guide,
   SessionSummary,
@@ -178,5 +182,30 @@ export async function completeSession(
     `/troubleshooting/sessions/${sessionId}/complete`,
     body,
   )
+  return data
+}
+
+export async function getSlackStatus(): Promise<SlackStatus> {
+  const { data } = await api.get<SlackStatus>('/integrations/slack/status')
+  return data
+}
+
+export async function getSlackChannels(): Promise<SlackChannelList> {
+  const { data } = await api.get<SlackChannelList>('/integrations/slack/channels')
+  return data
+}
+
+export async function setSlackChannel(channelId: string, enabled: boolean): Promise<SlackChannel> {
+  const { data } = await api.post<SlackChannel>('/integrations/slack/channels', {
+    channel_id: channelId,
+    enabled,
+  })
+  return data
+}
+
+export async function getSlackEvents(): Promise<IntegrationEvent[]> {
+  const { data } = await api.get<IntegrationEvent[]>('/integrations/slack/events', {
+    params: { limit: 30 },
+  })
   return data
 }

@@ -84,6 +84,8 @@ class DiscoveryEngine:
     message_interval_seconds: float = 2.0
     max_concurrent_analyses: int = 2
     analyze: Callable[..., Awaitable[AnalysisOutcome]] = analyze_thread
+    # Optional observer for every emitted event (the Slack worker mirrors results to the DB).
+    on_event: Callable[[DiscoveryEvent], None] | None = None
     # Search indexing after knowledge changes (Phase 4). None disables it.
     embedder_factory: Callable[[], EmbeddingService] | None = None
     index: Callable[..., Awaitable[IndexOutcome]] = index_item
@@ -106,11 +108,17 @@ class DiscoveryEngine:
 
     def emit(self, kind: EventKind, message: str, *, thread_id: uuid.UUID | None = None,
              level: Literal["info", "success", "warning", "error"] = "info") -> None:
-        self._events.append(DiscoveryEvent(
+        event = DiscoveryEvent(
             id=next(self._event_ids), at=datetime.now(UTC), kind=kind, message=message,
             thread_id=thread_id, thread_title=self._titles.get(thread_id) if thread_id else None,
             level=level,
-        ))
+        )
+        self._events.append(event)
+        if self.on_event is not None:
+            try:
+                self.on_event(event)
+            except Exception:  # noqa: BLE001 - observers must never break the pipeline
+                logger.exception("Discovery event observer failed")
 
     def events_after(self, after: int = 0, limit: int = 100) -> list[DiscoveryEvent]:
         # A cursor beyond the newest event means the backend restarted (ids begin at 1
