@@ -1,4 +1,3 @@
-import { FlaskConical, Pause, Play, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -41,7 +40,6 @@ export default function LiveDiscovery() {
   const [params] = useSearchParams()
   const [selectedId, setSelectedId] = useState<string | null>(params.get('thread'))
   const [followLive, setFollowLive] = useState(!params.get('thread'))
-  const [demoOpen, setDemoOpen] = useState(false)
   const controls = useSimulationControls(() => {
     events.reset()
     setSelectedId(null)
@@ -80,39 +78,15 @@ export default function LiveDiscovery() {
   const sim = status.data?.simulation
   const analysis = status.data?.analysis
   const devControls = status.data?.development_controls ?? false
-  const mutationError = controls.start.error ?? controls.stop.error ?? controls.reset.error
-  const progress = sim && sim.total > 0 ? (sim.delivered + sim.skipped_duplicates) / sim.total : 0
 
   const selectThread = (id: string) => {
     setSelectedId(id)
     setFollowLive(false)
   }
 
-  const onReset = () => {
-    if (
-      window.confirm(
-        'Delete the synthetic demo conversations and the knowledge discovered from them? Slack and other data are not affected.',
-      )
-    ) {
-      controls.reset.mutate()
-    }
-  }
-
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        actions={
-          <Button
-            variant={demoOpen || sim?.running ? 'secondary' : 'outline'}
-            onClick={() => setDemoOpen((v) => !v)}
-            aria-expanded={demoOpen}
-          >
-            <FlaskConical aria-hidden="true" />
-            Demo mode
-            {sim?.running && <span className="size-2 animate-pulse rounded-full bg-primary" />}
-          </Button>
-        }
-      >
+      <PageHeader>
         <div className="flex flex-wrap items-center gap-3" aria-live="polite">
           {sim?.running && (
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -128,70 +102,7 @@ export default function LiveDiscovery() {
         </div>
       </PageHeader>
 
-      {demoOpen && (
-        <div className="flex flex-col gap-3 border-y bg-muted/30 px-4 py-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium text-foreground">Demo mode</span>
-            <span className="text-sm text-muted-foreground">
-              Streams synthetic chat, Teams and email conversations (incl. the TRN-042 case) through
-              the same pipeline as Slack.
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {sim?.running ? (
-              <Button
-                variant="outline"
-                onClick={() => controls.stop.mutate()}
-                disabled={!devControls || controls.stop.isPending}
-              >
-                <Pause aria-hidden="true" />
-                Stop feed
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  setFollowLive(true)
-                  controls.start.mutate()
-                }}
-                disabled={!devControls || controls.start.isPending || !status.data}
-              >
-                <Play aria-hidden="true" />
-                Start demo feed
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              onClick={onReset}
-              disabled={!devControls || controls.reset.isPending}
-            >
-              <RotateCcw aria-hidden="true" />
-              Reset demo data
-            </Button>
-            {sim && sim.total > 0 && (
-              <span className="flex min-w-40 flex-1 items-center gap-2 text-xs text-muted-foreground tabular-nums">
-                <span
-                  className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
-                  aria-hidden="true"
-                >
-                  <span
-                    className="block h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${Math.round(progress * 100)}%` }}
-                  />
-                </span>
-                {sim.delivered + sim.skipped_duplicates}/{sim.total}
-              </span>
-            )}
-          </div>
-          {!devControls && status.data && (
-            <p className="text-sm text-muted-foreground">
-              Demo controls are available in development only.
-            </p>
-          )}
-        </div>
-      )}
-
       {status.isError && <Notice tone="error">{getErrorMessage(status.error)}</Notice>}
-      {mutationError != null && <Notice tone="error">{getErrorMessage(mutationError)}</Notice>}
 
       {/* Three panels, same card language as the rest of the app: a bordered white surface
           with its own header, instead of one box pretending to be three widgets. */}
