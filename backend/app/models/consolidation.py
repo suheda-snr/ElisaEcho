@@ -86,6 +86,10 @@ class KnowledgeRelationship(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     target_evidence_ids: Mapped[list[Any]] = mapped_column(JSONB, **_JSON_LIST)
     validation_notes: Mapped[list[Any]] = mapped_column(JSONB, **_JSON_LIST)
     model_name: Mapped[str | None] = mapped_column(String(100))
+    # Set when one case replaces the other (newer advice makes the older one outdated).
+    superseded_knowledge_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("knowledge_items.id", ondelete="SET NULL", name="fk_knowledge_relationships_superseded")
+    )
     # Hash of both items' content at comparison time: unchanged pairs are not re-compared.
     pair_fingerprint: Mapped[str] = mapped_column(String(64))
 

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import KnowledgeChunk, KnowledgeItem, knowledge_item_equipment
+from app.models import KnowledgeChunk, KnowledgeEntityLink, KnowledgeItem, knowledge_item_equipment
 from app.models.enums import ApprovalStatus
 from app.services.retrieval.search import SearchFilters, allowed_items
 
@@ -25,7 +25,8 @@ class Candidate:
 
 def eligible_items() -> Select:
     """Items that take part in consolidation: from enabled sources, not rejected by an expert."""
-    return allowed_items(SearchFilters()).where(KnowledgeItem.approval_status != ApprovalStatus.REJECTED)
+    return allowed_items(SearchFilters(include_outdated=True)).where(
+        KnowledgeItem.approval_status != ApprovalStatus.REJECTED)
 
 
 async def find_candidates(
@@ -62,7 +63,17 @@ async def find_candidates(
             knowledge_item_equipment.c.knowledge_item_id != item_id,
             knowledge_item_equipment.c.knowledge_item_id.in_(allowed))
     )
-    for other_id in shared:
+    # Also the same node or site through entity links (e.g. two access notes for one site).
+    my_entities = select(KnowledgeEntityLink.entity_key).where(
+        KnowledgeEntityLink.knowledge_item_id == item_id, KnowledgeEntityLink.entity_type.in_(["equipment", "site"]))
+    shared_entities = await session.scalars(
+        select(KnowledgeEntityLink.knowledge_item_id).distinct().where(
+            KnowledgeEntityLink.entity_type.in_(["equipment", "site"]),
+            KnowledgeEntityLink.entity_key.in_(my_entities),
+            KnowledgeEntityLink.knowledge_item_id != item_id,
+            KnowledgeEntityLink.knowledge_item_id.in_(allowed))
+    )
+    for other_id in {*shared, *shared_entities}:
         prev = found.get(other_id)
         found[other_id] = Candidate(other_id, prev.similarity if prev else None, True)
 

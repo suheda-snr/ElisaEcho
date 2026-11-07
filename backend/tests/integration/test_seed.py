@@ -28,7 +28,8 @@ async def _demo_counts(session: AsyncSession) -> tuple[int, int, int]:
 
 
 async def test_seed_is_idempotent(db_session: AsyncSession, test_settings: Settings) -> None:
-    expected_messages = sum(len(t.messages) for t in DEMO_THREADS)
+    chat = [t for t in DEMO_THREADS if t.source == "chat"]
+    expected_messages = sum(len(t.messages) for t in chat)
 
     first = await seed_demo_data(db_session, test_settings)
     after_first = await _demo_counts(db_session)
@@ -36,7 +37,10 @@ async def test_seed_is_idempotent(db_session: AsyncSession, test_settings: Setti
     after_second = await _demo_counts(db_session)
 
     assert first == second
-    assert after_first == after_second == (1, len(DEMO_THREADS), expected_messages)
+    assert after_first == after_second == (1, len(chat), expected_messages)
+    # Plus the Teams threads and the demo emails (3 emails in 2 threads), never duplicated.
+    assert first.threads == len(DEMO_THREADS) + 2
+    assert first.messages == sum(len(t.messages) for t in DEMO_THREADS) + 3
 
 
 async def test_seed_stores_only_conversations_for_phase_3(

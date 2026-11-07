@@ -270,6 +270,9 @@ curl "http://localhost:8000/api/threads?limit=10"
 | GET    | `/api/knowledge/{id}`         | Knowledge item with evidence messages, equipment, incidents and discovery details |
 | GET    | `/api/knowledge/{id}/related` | AI-assessed relationships of an item and its knowledge group |
 | GET    | `/api/knowledge-groups`, `/{id}`, `/{id}/relationships` | Groups of related cases: summary, cases, pairwise comparisons |
+| POST   | `/api/integrations/email/import`, `/import-samples` | Import emails into a mailbox source (**development only**) |
+| GET    | `/api/integrations/email/mailboxes` | Mailboxes used as knowledge sources |
+| GET    | `/api/inventory` | Synthetic network inventory (sites, nodes, unit classes) with knowledge counts |
 | POST   | `/api/troubleshooting/feedback` | Report whether a recommendation was attempted and its outcome |
 | PATCH  | `/api/troubleshooting/feedback/{id}` | Correct own feedback (`X-Feedback-Token` from the submission) |
 | GET    | `/api/troubleshooting/sessions/{id}/feedback` | Feedback given in a session |
@@ -751,6 +754,118 @@ yet, so every report is `self_reported`.
 5. Open the knowledge item: both reports appear under Real-world validation, with the firmware
    breakdown; the approval status is unchanged. Search shows the summary.
 6. Generate a new guide mentioning firmware 4.0: the earlier failure is part of its context.
+
+## Context assertions: email, entities and time validity
+
+This part maps Elisa Echo to the challenge's reference model: every piece of captured context is
+a **context assertion bound to network entities, with its source and a validity period**.
+
+### Email as a source (no extra work for experts)
+
+Experts keep answering by email and CC (or forward to) a shared knowledge mailbox. Each mailbox
+is a communication source whose `enabled` flag is the allowlist.
+
+- `.eml` or JSON emails are parsed; quoted history ("> ...", "On ... wrote:", Outlook
+  "Original Message") and signatures are removed, so each stored message is what its author wrote.
+- Replies join their thread via `References` / `In-Reply-To`, then by normalized subject
+  (`RE:`/`FW:`/`VS:` stripped). The `Message-ID` makes re-imports idempotent.
+- Email threads go through the same discovery pipeline as chat (Gemini, validation, evidence).
+- Demo intake: **Integrations → Email** (import the sample emails or upload `.eml` files),
+  `POST /api/integrations/email/import` (development only), or the CLI:
+
+```bash
+docker compose exec backend python -m app.scripts.import_email app/seed/emails --analyze
+```
+
+  Production would read the shared mailbox automatically (IMAP / Microsoft Graph).
+
+#### Connect a real mailbox (IMAP, e.g. Gmail)
+
+**Integrations → Email → Connect your mailbox.** Elisa Echo then checks one folder/label every
+minute (`EMAIL_POLL_SECONDS`) and analyzes new emails automatically.
+
+1. Gmail: turn on 2-Step Verification, create an **app password** at
+   myaccount.google.com/apppasswords (your normal password does not work over IMAP).
+2. In Gmail create a label, e.g. `Elisa Echo`, and put (or filter) the work emails you want
+   read into it. Every email costs one Gemini call, so do not point it at a busy inbox.
+3. Enter the address, the app password and the label; the login is verified before anything is
+   stored. Other providers: change the IMAP server (e.g. `outlook.office365.com`).
+
+Safety: read-only (`SELECT` read-only + `BODY.PEEK`: nothing is moved, deleted or marked read);
+first check limited to the last N days, then only newer emails, at most N per check; the
+password is encrypted at rest (Fernet; key in `EMAIL_CREDENTIALS_KEY` or the git-ignored
+`backend/.local/credentials.key`), never returned by the API, never logged, and deleted on
+Disconnect (imported emails and knowledge stay). Development mode only, because the app has
+no login yet. Email text is sent to Gemini for analysis.
+
+### Entity binding with the network inventory
+
+Gemini copies identifiers and states the scope; the server binds deterministically:
+
+| Link | Source | Example |
+| --- | --- | --- |
+| `equipment / observed_on` | conversation | TRN-042 |
+| `unit_class / applies_to` | inventory, **only if the conversation says it applies to that kind of unit** | TX-900 transmission unit (legacy generation) |
+| `site / located_at` | inventory | SITE-OULU-07 |
+| `site / access_to` | conversation (site access knowledge) | SITE-PELLO-03 |
+| `event / triggered_by` | conversation (every word must appear in it) | SFP replacement |
+
+Search uses these links: a question about **TRN-118** (same legacy unit class, never mentioned
+in any conversation) finds the TRN-042 fix with the signal `trn118 (same unit class)`; the newer
+TRN-305 does not inherit it. The synthetic inventory (sites, nodes, unit class, install year) is
+in `app/seed/inventory.py` and is shown on the Integrations page (`GET /api/inventory`).
+
+### Site access information
+
+Besides troubleshooting, Gemini recognises access knowledge (where a barrier key is kept, gate
+codes, road conditions, who to call) as `knowledge_type = site_access`, bound to the site. It is
+searchable and shown with a "Site access" badge.
+
+### Time validity (`valid_from` / `valid_to`)
+
+- `valid_from` = the first evidence message; `valid_to` empty = still believed true.
+- When a newer case explicitly says older information is no longer valid, consolidation marks
+  the older item as replaced. The server accepts this only if both sides cite evidence and the
+  replacing case is really newer; `valid_to` is set to when the replacement was first reported,
+  and `superseded_by` points to the new item. A later re-comparison can undo it.
+- Search and guides serve only currently valid knowledge by default. Search can include
+  outdated knowledge (clearly marked) or answer **"what was valid on date X"** (`as_of`).
+- Consolidation compares items that share a node or site, so two notes about the same barrier
+  are compared even when their wording differs.
+
+### Demo: the Elisa Appendix A case
+
+1. Live Discovery → start the feed (or `python -m app.seed` and analyze the threads). It delivers
+   the **Teams conversation** between Veikko and Erkki about TRN-042 and the **same case by
+   email**, plus the barrier-key conversations.
+2. Knowledge Base: "Traffic not recovering after SFP replacement on older transmission units",
+   confirmed in conversation, linked to TRN-042, the legacy TX-900 unit class, SITE-OULU-07 and
+   the SFP replacement event; the email version is grouped with it in the Knowledge Network.
+3. Search (as an agent would): "TRN-118: swapped the optical module, port is up, light levels
+   fine, but zero traffic" → the TRN-042 knowledge via the unit class; Guided Troubleshooting
+   proposes checking the traffic counters and disabling/re-enabling the interface before
+   replacing hardware or rebooting.
+4. Access: the 2025 email (lockbox, code 4471) is marked **outdated since 28 Oct 2026**, replaced
+   by the Teams note (key at the Pello depot, tag P3). Search returns the current instruction;
+   with "Valid on 2025-06-01" it returns the old one.
+
+### Synthetic data we generated
+
+All data is fictional (`*.invalid` domains, "(synthetic)" names, no personal or production data):
+
+| Data | Where | Purpose |
+| --- | --- | --- |
+| Appendix A Teams chat (TRN-042, 12 messages, verbatim from the brief) | `app/seed/demo_data.py` | Hidden expert knowledge from chat |
+| Appendix A email thread (question + Erkki's reply with quoted history) | `app/seed/emails/01-02*.eml` | Same knowledge from email; quote stripping, threading |
+| Barrier-key email from 2025 (lockbox code) | `app/seed/emails/03-pello03-access-2025.eml` | Access information that later becomes outdated |
+| Barrier-key Teams chat from 2026 (lock replaced, key at depot) | `app/seed/demo_data.py` | Newer information replacing the old |
+| Site 42 / 17 / 58 router conversations | `app/seed/demo_data.py` | Same symptoms, different causes; supporting evidence; firmware conditions |
+| BGP, OLT and lunch threads | `app/seed/demo_data.py` | Multiple suggested fixes, unresolved incident, irrelevant chatter |
+| Network inventory: 6 sites, 6 nodes (TRN-042/118 legacy TX-900, TRN-305 newer TX-2000, routers) | `app/seed/inventory.py` | Correct entity and unit-class binding |
+
+The conversations were written by hand in the style of the brief: the Appendix A texts are
+used as given; the other cases vary one factor at a time (cause, firmware, time) to test linking,
+conflicts and validity.
 
 ## Backend tests
 

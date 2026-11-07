@@ -13,6 +13,7 @@ from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.db.session import DatabaseNotConfiguredError, dispose_engine, get_sessionmaker
 from app.services.discovery.factory import build_discovery_engine
+from app.services.email_imap import EmailPoller
 from app.db.url import InvalidDatabaseUrlError
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    app.state.email_poller.start()  # reads connected mailboxes (if any) every EMAIL_POLL_SECONDS
     yield
+    await app.state.email_poller.stop()
     await app.state.discovery.shutdown()
     await dispose_engine()
 
@@ -82,6 +85,8 @@ def create_app() -> FastAPI:
     gemini = GeminiClient.from_settings(settings)
     app.state.embeddings = EmbeddingService.from_settings(settings, gemini)
     app.state.discovery = build_discovery_engine(settings, gemini, app.state.embeddings)
+    app.state.email_poller = EmailPoller(lambda: get_sessionmaker()(), app.state.discovery.schedule_analysis,
+                                         settings.email_poll_seconds)
 
     @app.get("/", include_in_schema=False)
     def root() -> dict[str, str]:

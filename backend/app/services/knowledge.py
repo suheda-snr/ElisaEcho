@@ -39,6 +39,7 @@ async def get_knowledge_item(session: AsyncSession, item_id: uuid.UUID) -> Knowl
             selectinload(KnowledgeItem.equipment),
             selectinload(KnowledgeItem.incidents),
             selectinload(KnowledgeItem.candidate),
+            selectinload(KnowledgeItem.entity_links),
         )
     )
 
@@ -58,3 +59,22 @@ def discovery_info(item: KnowledgeItem) -> DiscoveryInfo | None:
         missing_information=data.get("analysis", {}).get("missing_information", []),
         validation_flags=data.get("validation", {}).get("flags", []),
     )
+
+
+async def context_fields(session: AsyncSession, items: list[KnowledgeItem]) -> dict[uuid.UUID, dict]:
+    """knowledge_type, validity, superseded-by reference and entity links per item
+    (entity_links must be loaded)."""
+    from app.schemas.knowledge import EntityLinkRead, SupersededByRef
+
+    replacing_ids = {i.superseded_by_id for i in items if i.superseded_by_id}
+    titles = dict((await session.execute(select(KnowledgeItem.id, KnowledgeItem.title).where(
+        KnowledgeItem.id.in_(replacing_ids)))).all()) if replacing_ids else {}
+    order = {"equipment": 0, "unit_class": 1, "site": 2, "event": 3}
+    return {i.id: {
+        "knowledge_type": i.knowledge_type, "valid_from": i.valid_from, "valid_to": i.valid_to,
+        "validity_note": i.validity_note,
+        "superseded_by": SupersededByRef(id=i.superseded_by_id, title=titles.get(i.superseded_by_id, "Newer knowledge"))
+        if i.superseded_by_id else None,
+        "entity_links": [EntityLinkRead.model_validate(link) for link in
+                         sorted(i.entity_links, key=lambda x: (order.get(x.entity_type, 9), x.label))],
+    } for i in items}

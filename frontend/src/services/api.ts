@@ -11,7 +11,11 @@ import type {
   FeedbackInput,
   FeedbackSaved,
   FeedbackSummary,
+  EmailCheckResult,
+  EmailConnection,
+  EmailConnectionCreate,
   Guide,
+  Inventory,
   GroupBrief,
   GroupDetail,
   KnowledgeRelationship,
@@ -176,6 +180,44 @@ export async function getKnowledgeFeedback(id: string): Promise<Page<Troubleshoo
 
 export async function getFeedbackSummary(id: string): Promise<FeedbackSummary> {
   const { data } = await api.get<FeedbackSummary>(`/knowledge/${id}/feedback/summary`)
+  return data
+}
+
+export async function getEmailConnections(): Promise<EmailConnection[]> {
+  const { data } = await api.get<EmailConnection[]>('/integrations/email/connections')
+  return data
+}
+
+export async function connectMailbox(body: EmailConnectionCreate): Promise<EmailConnection> {
+  // Verifying the login can take a few seconds.
+  const { data } = await api.post<EmailConnection>('/integrations/email/connections', body, {
+    timeout: 60_000,
+  })
+  return data
+}
+
+export async function checkMailbox(id: string): Promise<EmailCheckResult> {
+  const { data } = await api.post<EmailCheckResult>(
+    `/integrations/email/connections/${id}/check`,
+    undefined,
+    { timeout: 120_000 },
+  )
+  return data
+}
+
+export async function setMailboxEnabled(id: string, enabled: boolean): Promise<EmailConnection> {
+  const { data } = await api.patch<EmailConnection>(`/integrations/email/connections/${id}`, {
+    enabled,
+  })
+  return data
+}
+
+export async function disconnectMailbox(id: string): Promise<void> {
+  await api.delete(`/integrations/email/connections/${id}`)
+}
+
+export async function getInventory(): Promise<Inventory> {
+  const { data } = await api.get<Inventory>('/inventory')
   return data
 }
 

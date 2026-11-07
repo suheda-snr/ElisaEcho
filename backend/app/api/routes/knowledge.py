@@ -47,6 +47,8 @@ async def get_knowledge(item_id: uuid.UUID, session: DbSession) -> KnowledgeItem
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge item not found.")
     detail = KnowledgeItemDetail.model_validate(item)
     detail.discovery = service.discovery_info(item)
+    for name, value in (await service.context_fields(session, [item]))[item.id].items():
+        setattr(detail, name, value)
     return detail
 
 

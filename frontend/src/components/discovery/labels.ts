@@ -7,6 +7,7 @@ export const classificationLabels: Record<string, string> = {
   confirmed_resolution: 'Confirmed resolution',
   workaround_or_exception: 'Workaround or exception',
   contradictory_or_incomplete: 'Contradictory or incomplete',
+  access_information: 'Site access information',
 }
 
 export const processingLabels: Record<ProcessingStatus, string> = {

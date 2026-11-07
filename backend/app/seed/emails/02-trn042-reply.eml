@@ -1,0 +1,36 @@
+Message-ID: <trn042-sfp-re1@network.elisa-echo.invalid>
+In-Reply-To: <trn042-sfp-q@field-ops.elisa-echo.invalid>
+References: <trn042-sfp-q@field-ops.elisa-echo.invalid>
+Date: Mon, 05 Oct 2026 10:02:00 +0000
+From: "Erkki Expert (synthetic)" <erkki.expert@network.elisa-echo.invalid>
+To: "Veikko Vikkelä (synthetic)" <veikko.vikkela@field-ops.elisa-echo.invalid>
+Cc: ops-knowledge@elisa-echo.invalid
+Subject: RE: TRN-042 traffic not recovering after SFP replacement
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Hi Veikko,
+
+That sounds like the behaviour we have seen with some of the older transmission units.
+
+The confusing part is that everything can look normal after replacing the optical module:
+- interface status = UP
+- optical levels = OK
+- alarms = cleared
+...but traffic still doesn't recover.
+
+Before replacing the SFP again or rebooting the unit, check the traffic counters. If the
+interface is UP but the counters remain at zero, try disabling and enabling the interface
+once. This has solved the issue in several cases I've seen.
+
+I don't think this is written in the normal field instructions. It is one of those things
+we have learned from experience.
+
+Regards,
+Erkki
+
+On Mon, 5 Oct 2026 at 08:58, Veikko Vikkelä wrote:
+> Hi Erkki,
+> I replaced the SFP on transmission node TRN-042 this morning. Interface status is UP,
+> optical levels look OK and the alarms have cleared, but traffic has not recovered.
+> Should I replace the SFP again?

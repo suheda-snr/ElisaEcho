@@ -21,6 +21,8 @@ async def no_session():
 
 
 def make_engine(**kwargs) -> DiscoveryEngine:
+    kwargs.setdefault("prepare_demo", None)
+    kwargs.setdefault("demo_emails", lambda: [])
     return DiscoveryEngine(session_factory=no_session, gemini_factory=lambda: FakeGemini(IRRELEVANT), **kwargs)
 
 

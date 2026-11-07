@@ -13,6 +13,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Literal
 
 from sqlalchemy import Select, Text, cast, exists, func, literal_column, or_, select
@@ -27,6 +28,7 @@ from app.models import (
     Incident,
     KnowledgeCandidate,
     KnowledgeChunk,
+    KnowledgeEntityLink,
     KnowledgeItem,
     knowledge_item_equipment,
     knowledge_item_incidents,
@@ -50,7 +52,8 @@ def chunk_tsvector():
 
 # Tokens that look like operational identifiers: letters followed by digits, optionally with
 # more segments, e.g. INC-1042, PE-03, S42-RTR-01, OLT-17, "Site 42", ERR_503.
-_IDENTIFIER = re.compile(r"\b[A-Za-z]{1,12}[-_ ]?\d+(?:[-_][A-Za-z0-9]+)*\b")
+# An optional letters-only prefix segment keeps identifiers like SITE-PELLO-03 whole.
+_IDENTIFIER = re.compile(r"\b(?:[A-Za-z]{1,12}[-_])?[A-Za-z]{1,12}[-_ ]?\d+(?:[-_][A-Za-z0-9]+)*\b")
 
 
 def normalize_identifier(value: str) -> str:
@@ -76,6 +79,10 @@ class SearchFilters:
     incident_number: str | None = None
     approval_status: ApprovalStatus | None = None
     resolution_status: ResolutionStatus | None = None
+    # Time validity: by default only knowledge that is still believed true (valid_to unset or
+    # in the future). `as_of` asks what was valid at that moment.
+    as_of: datetime | None = None
+    include_outdated: bool = False
 
 
 @dataclass
@@ -112,6 +119,11 @@ def allowed_items(filters: SearchFilters) -> Select:
         # Knowledge from disabled (no longer authorized) sources is not searchable.
         .where(or_(CommunicationSource.id.is_(None), CommunicationSource.enabled.is_(True)))
     )
+    if not filters.include_outdated:
+        moment = filters.as_of if filters.as_of is not None else func.now()
+        query = query.where(or_(KnowledgeItem.valid_to.is_(None), KnowledgeItem.valid_to > moment))
+        if filters.as_of is not None:
+            query = query.where(or_(KnowledgeItem.valid_from.is_(None), KnowledgeItem.valid_from <= filters.as_of))
     if filters.approval_status is not None:
         query = query.where(KnowledgeItem.approval_status == filters.approval_status)
     if filters.resolution_status is not None:
@@ -231,6 +243,36 @@ async def identifier_candidates(
     )
     for item_id, number in incident_rows:
         add(item_id, number, 2)
+
+    # Entities the knowledge is bound to (sites named in access info, nodes, ...).
+    link_rows = await session.execute(
+        select(KnowledgeEntityLink.knowledge_item_id, KnowledgeEntityLink.entity_key)
+        .where(KnowledgeEntityLink.knowledge_item_id.in_(allowed),
+               KnowledgeEntityLink.entity_type.in_(["equipment", "site"]),
+               KnowledgeEntityLink.entity_key.in_(tokens))
+    )
+    for item_id, key in link_rows:
+        add(item_id, key, 2)
+
+    # Sibling nodes: a node in the query that is not in the knowledge, but whose inventory unit
+    # class is one the knowledge applies to (e.g. TRN-118 vs knowledge learned on TRN-042).
+    nodes = await session.execute(
+        select(_sql_normalized(Equipment.equipment_identifier), Equipment.unit_class)
+        .where(_sql_normalized(Equipment.equipment_identifier).in_(tokens), Equipment.unit_class.is_not(None))
+    )
+    class_of = {token: normalize_identifier(unit_class) for token, unit_class in nodes}
+    if class_of:
+        class_rows = await session.execute(
+            select(KnowledgeEntityLink.knowledge_item_id, KnowledgeEntityLink.entity_key)
+            .where(KnowledgeEntityLink.knowledge_item_id.in_(allowed),
+                   KnowledgeEntityLink.entity_type == "unit_class",
+                   KnowledgeEntityLink.relation == "applies_to",
+                   KnowledgeEntityLink.entity_key.in_(set(class_of.values())))
+        )
+        for item_id, key in class_rows:
+            for token, cls in class_of.items():
+                if cls == key:
+                    add(item_id, f"{token} (same unit class)", 1)
 
     # Identifiers written in the knowledge text (error codes, service and site names).
     normalized_content = _sql_normalized(KnowledgeChunk.content)

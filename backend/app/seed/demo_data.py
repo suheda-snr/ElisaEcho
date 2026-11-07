@@ -13,6 +13,20 @@ DEMO_SOURCE_NAME = "Synthetic NOC chat (demo)"
 DEMO_SOURCE_TYPE = SourceType.SIMULATED
 DEMO_SOURCE_EXTERNAL_ID = "elisa-echo-synthetic-demo"
 
+# Synthetic Teams channel for the Elisa Appendix A case (same pipeline as any chat source).
+DEMO_TEAMS_SOURCE_NAME = "Synthetic Teams: field operations (demo)"
+DEMO_TEAMS_SOURCE_EXTERNAL_ID = "elisa-echo-synthetic-teams"
+# Synthetic shared mailbox the demo emails are imported into (see app/seed/emails/).
+DEMO_MAILBOX = "ops-knowledge@elisa-echo.invalid"
+DEMO_EMAIL_SOURCE_EXTERNAL_ID = f"mailbox:{DEMO_MAILBOX}"
+
+# (name, type, external id) per demo channel; demo reset is scoped to exactly these sources.
+DEMO_SOURCES: dict[str, tuple[str, SourceType, str]] = {
+    "chat": (DEMO_SOURCE_NAME, DEMO_SOURCE_TYPE, DEMO_SOURCE_EXTERNAL_ID),
+    "teams": (DEMO_TEAMS_SOURCE_NAME, SourceType.TEAMS, DEMO_TEAMS_SOURCE_EXTERNAL_ID),
+    "email": (f"Email: {DEMO_MAILBOX} (demo)", SourceType.EMAIL, DEMO_EMAIL_SOURCE_EXTERNAL_ID),
+}
+
 # Reserved TLD: these links can never resolve to a real system.
 _URL = "https://chat.example.invalid/demo"
 
@@ -37,10 +51,12 @@ class DemoThread:
     # What the conversation is meant to exercise in Phase 3 (documentation only).
     scenario: str
     messages: tuple[DemoMessage, ...]
+    # Key in DEMO_SOURCES: which (synthetic) channel the conversation happens in.
+    source: str = "chat"
 
 
-def _t(day: int, hour: int, minute: int) -> datetime:
-    return datetime(2026, 10, day, hour, minute, tzinfo=UTC)
+def _t(day: int, hour: int, minute: int, month: int = 10) -> datetime:
+    return datetime(2026, month, day, hour, minute, tzinfo=UTC)
 
 
 AINO = ("demo-user-aino", "Aino Virtanen (synthetic)")
@@ -48,6 +64,10 @@ JARI = ("demo-user-jari", "Jari Laine (synthetic)")
 LEENA = ("demo-user-leena", "Leena Koski (synthetic)")
 PETRI = ("demo-user-petri", "Petri Salo (synthetic)")
 SANNA = ("demo-user-sanna", "Sanna Mäkelä (synthetic)")
+# Illustrative names from the Elisa challenge brief (Appendix A).
+VEIKKO = ("demo-user-veikko", "Veikko Vikkelä | Field Engineer (synthetic)")
+ERKKI = ("demo-user-erkki", "Erkki Expert | Network Expert (synthetic)")
+KAISA = ("demo-user-kaisa", "Kaisa Kenttä | Field Coordinator (synthetic)")
 
 
 def _m(
@@ -161,6 +181,51 @@ DEMO_THREADS: tuple[DemoThread, ...] = (
             _m("site58", 3, SANNA, _t(30, 15, 20),
                "Restarted the DHCP relay service on S58-RTR-01. No drops for over an hour, fixed.",
                deferred=True),
+        ),
+    ),
+    DemoThread(
+        external_id="demo-teams-trn042-sfp",
+        title="TRN-042 traffic not recovering after SFP replacement",
+        # Elisa Appendix A2: hidden expert knowledge shared in Teams.
+        scenario="hidden_expert_knowledge",
+        source="teams",
+        messages=tuple(_m("trn042", i, who, _t(5, 9, minute), text, deferred=True) for i, (who, minute, text) in
+                       enumerate([
+            (VEIKKO, 14, "Hi Erkki, I'm at the site now. Changed the SFP on transmission node TRN-042.\n"
+                         "Link is up and alarms cleared, but traffic is still not coming back. Have you seen this before?"),
+            (ERKKI, 16, "Yes. Is this one of the older units?"),
+            (VEIKKO, 16, "Yes, installed around 2019 I think."),
+            (ERKKI, 18, "Ok. Don't trust the green link status on those.\nSometimes after changing the SFP the "
+                        "interface comes up normally, but the forwarding state doesn't recover correctly."),
+            (VEIKKO, 18, "So another SFP?"),
+            (ERKKI, 19, "No. Usually the SFP is fine.\nCheck whether the traffic counters are actually increasing. If "
+                        "they stay at zero even though the interface is UP, it's probably the issue I've seen before."),
+            (VEIKKO, 21, "Yes. Link UP. RX power looks normal. Counters basically zero."),
+            (ERKKI, 22, "That's it.\nDisable the interface, wait a little, then enable it again. Don't reboot the whole "
+                        "unit unless that fails."),
+            (VEIKKO, 25, "Did that. Traffic is back 👍"),
+            (ERKKI, 25, "Good. These old units sometimes behave like this after an optical module replacement."),
+            (VEIKKO, 26, "Is this documented somewhere?"),
+            (ERKKI, 27, "Not that I know of 😄\nWe've just learned it over the years."),
+        ], start=1)),
+    ),
+    DemoThread(
+        external_id="demo-teams-pello03-access",
+        title="Barrier key for SITE-PELLO-03",
+        # Access information that replaces older advice (the 2025 lockbox email in app/seed/emails/).
+        scenario="outdated_access_information",
+        source="teams",
+        messages=(
+            _m("pello03", 1, VEIKKO, _t(28, 7, 40),
+               "At the private road to SITE-PELLO-03 for the TRN-118 job. The lockbox on the barrier post is gone "
+               "and the barrier is locked. Where is the key now?", deferred=True),
+            _m("pello03", 2, KAISA, _t(28, 7, 46),
+               "The barrier lock was replaced earlier this month and the old lockbox was removed. The key is now "
+               "kept in the key cabinet at the Pello depot, tag P3. Pick it up before driving out.", deferred=True),
+            _m("pello03", 3, VEIKKO, _t(28, 8, 31),
+               "Got the key from the Pello depot, barrier open. Thanks!", deferred=True),
+            _m("pello03", 4, KAISA, _t(28, 8, 33),
+               "Good. The lockbox instructions from the 2025 email are no longer valid.", deferred=True),
         ),
     ),
 )

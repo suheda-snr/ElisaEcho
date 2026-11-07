@@ -170,6 +170,16 @@ knowledge and messages); per-user authorization.
 
 ---
 
+## Phase 7: Context assertions for the Elisa case (done)
+
+- Email as a source (.eml/JSON, quote stripping, threading, mailbox allowlist, CLI and API)
+- Knowledge types: troubleshooting and site access information
+- Entity binding to node, unit class (inventory), site and event; sibling-node retrieval
+- Time validity: valid_from / valid_to, replacement by newer knowledge, point-in-time search
+- Synthetic inventory and the Appendix A Teams + email case; migration 0007
+
+---
+
 ## Phase 6: Expert feedback and demo polish
 
 **Goal:** make the knowledge base trustworthy over time and prepare the demo.

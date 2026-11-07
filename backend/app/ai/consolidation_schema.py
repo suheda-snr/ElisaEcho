@@ -45,6 +45,14 @@ class PairComparison(BaseModel):
     explanation: str = Field(description="Two sentences at most, citing what each case reported.")
     first_evidence_refs: list[str] = Field(description="Labels of A's messages supporting this, e.g. A2.")
     second_evidence_refs: list[str] = Field(description="Labels of B's messages supporting this, e.g. B1.")
+    replaced_case: Literal["A", "B", "none"] = Field(
+        default="none",
+        description=(
+            "Set only if the NEWER case explicitly says the other case's information or advice is no "
+            "longer valid (e.g. a lock was replaced, a procedure changed). The value is the OUTDATED "
+            "case. Different outcomes or conditions alone are not replacement."
+        ),
+    )
 
 
 class SolutionPath(BaseModel):

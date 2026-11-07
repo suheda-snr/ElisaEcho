@@ -4,6 +4,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -77,11 +78,22 @@ class Case:
                                   for a in self.item.attempted_actions or []],
             "applicability_conditions": self.item.applicability_conditions,
             "equipment": sorted(e.equipment_identifier for e in self.item.equipment),
+            "knowledge_type": self.item.knowledge_type.value,
             "conversation": self.conversation,
+            "first_message_at": self.evidence[0]["sent_at"] if self.evidence else None,
+            "last_message_at": self.evidence[-1]["sent_at"] if self.evidence else None,
             "messages": [{"ref": label, "role": e["type"], "author": e["author"], "text": e["text"]}
                          for label, e in zip(labels, self.evidence, strict=True)],
         }
-        return CaseView(self.id, labels, self.corpus()), payload
+        return CaseView(self.id, labels, self.corpus(), self.latest_at), payload
+
+    @property
+    def latest_at(self) -> datetime | None:
+        return datetime.fromisoformat(self.evidence[-1]["sent_at"]) if self.evidence else None
+
+    @property
+    def earliest_at(self) -> datetime | None:
+        return datetime.fromisoformat(self.evidence[0]["sent_at"]) if self.evidence else None
 
 
 def _fingerprint(item: KnowledgeItem, evidence: list[dict[str, Any]]) -> str:

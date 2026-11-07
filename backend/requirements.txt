@@ -11,4 +11,6 @@ google-genai==3.0.0
 python-dotenv==1.2.4
 # Slack Socket Mode connector (slack-worker service)
 slack-sdk==3.46.0
+# Encrypts stored mailbox passwords (IMAP email source).
+cryptography==50.0.2
 aiohttp==3.14.5

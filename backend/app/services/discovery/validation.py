@@ -5,6 +5,7 @@ claim points at real messages in the analyzed thread and that "confirmed"
 outcomes are backed by a confirming message.
 """
 
+import re
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -15,7 +16,7 @@ from app.models.enums import DetectionStatus, EvidenceType, ResolutionStatus
 
 # Classifications that can become a reusable knowledge item.
 KNOWLEDGE_CLASSIFICATIONS = frozenset(
-    {"unverified_suggestion", "confirmed_resolution", "workaround_or_exception"}
+    {"unverified_suggestion", "confirmed_resolution", "workaround_or_exception", "access_information"}
 )
 
 UNSUPPORTED_CONFIRMATION_NOTE = (
@@ -48,6 +49,11 @@ class ValidatedAnalysis:
     evidence: list[ValidatedEvidence]
     confidence: float
     rationale: str
+    knowledge_type: str = "troubleshooting"
+    site_identifiers: list[str] = field(default_factory=list)
+    scope: str = "unknown"
+    scope_description: str | None = None
+    trigger_events: list[str] = field(default_factory=list)
     # Problems found during validation (shown in the UI and stored for auditing).
     flags: list[str] = field(default_factory=list)
     invalid_refs: list[str] = field(default_factory=list)
@@ -93,6 +99,11 @@ class ValidatedAnalysis:
             ],
             "confidence": self.confidence,
             "rationale": self.rationale,
+            "knowledge_type": self.knowledge_type,
+            "site_identifiers": self.site_identifiers,
+            "scope": self.scope,
+            "scope_description": self.scope_description,
+            "trigger_events": self.trigger_events,
         }
 
 
@@ -167,6 +178,7 @@ def validate_analysis(
 
     equipment = verified(analysis.equipment_identifiers)
     incidents = verified(analysis.incident_numbers)
+    sites = verified(analysis.site_identifiers)
     if rejected:
         flags.append(f"Ignored identifiers not found in the conversation: {', '.join(rejected)}")
 
@@ -193,6 +205,19 @@ def validate_analysis(
     if is_valuable and not evidence:
         flags.append("No valid supporting messages; not stored as a knowledge item.")
 
+    # Events must be grounded in the conversation (every word's stem appears in it).
+    events = []
+    for event in _clean(analysis.trigger_events):
+        words = [w for w in re.findall(r"[a-z0-9]+", event.lower()) if len(w) >= 3]
+        if words and all(w[:4] in lowered_text for w in words):
+            events.append(event[:200])
+        else:
+            flags.append(f"Ignored event not mentioned in the conversation: {event}")
+    # A class-wide scope needs a concrete device to take the class from.
+    scope = analysis.scope if (analysis.scope != "same_equipment_class" or equipment) else "unknown"
+    knowledge_type = "site_access" if (analysis.knowledge_type == "site_access"
+                                       or classification == "access_information") else "troubleshooting"
+
     return ValidatedAnalysis(
         classification=classification,
         is_valuable=is_valuable,
@@ -213,4 +238,9 @@ def validate_analysis(
         flags=flags,
         invalid_refs=invalid_refs,
         rejected_identifiers=rejected,
+        knowledge_type=knowledge_type,
+        site_identifiers=sites,
+        scope=scope,
+        scope_description=(analysis.scope_description or "").strip()[:300] or None,
+        trigger_events=events,
     )

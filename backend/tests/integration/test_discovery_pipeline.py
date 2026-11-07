@@ -221,7 +221,7 @@ async def test_demo_reset_is_scoped_to_synthetic_demo_data(db_session: AsyncSess
     summary = await reset_demo_data(db_session, test_settings)
     await db_session.commit()
 
-    assert summary.threads == len(DEMO_THREADS) and summary.candidates == 1
+    assert summary.threads == len(DEMO_THREADS) + 2 and summary.candidates == 1  # + 2 email threads
     assert await _counts(db_session, other_thread) == (1, 1, 4)  # untouched
     assert await db_session.scalar(select(func.count()).select_from(ConversationThread).join(
         ConversationThread.source).where(CommunicationSource.external_source_id == DEMO_SOURCE_EXTERNAL_ID)) == 0
@@ -269,7 +269,7 @@ async def test_simulated_feed_discovers_knowledge_without_duplicates(
 
     assert (await api.post("/api/simulation/start")).json()["changed"] is True
     await _settle(engine)
-    total = sum(len(t.messages) for t in DEMO_THREADS)
+    total = sum(len(t.messages) for t in DEMO_THREADS) + 3  # + demo emails
     assert engine.simulation.delivered == total
 
     threads = (await api.get("/api/discovery/threads?limit=100")).json()["items"]

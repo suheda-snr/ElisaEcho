@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ from app.models.enums import (
     EvidenceType,
     IncidentSeverity,
     IncidentStatus,
+    KnowledgeType,
     ResolutionStatus,
 )
 from app.schemas.common import ORMModel
@@ -44,6 +45,33 @@ class EvidenceRead(ORMModel):
     message: MessageRead
 
 
+class EntityLinkRead(ORMModel):
+    entity_type: str  # equipment | unit_class | site | event
+    label: str
+    relation: str  # observed_on | applies_to | located_at | access_to | triggered_by
+    source: str  # conversation | inventory
+
+
+class SupersededByRef(BaseModel):
+    id: uuid.UUID
+    title: str
+
+
+class ContextFields(BaseModel):
+    """Context-assertion fields shared by knowledge reads and search results."""
+
+    knowledge_type: KnowledgeType = KnowledgeType.TROUBLESHOOTING
+    valid_from: datetime | None = None
+    valid_to: datetime | None = None  # None = still believed true
+    validity_note: str | None = None
+    superseded_by: SupersededByRef | None = None
+    entity_links: list[EntityLinkRead] = []
+
+    @property
+    def is_current(self) -> bool:
+        return self.valid_to is None or self.valid_to > datetime.now(UTC)
+
+
 class KnowledgeItemSummary(ORMModel):
     id: uuid.UUID
     title: str
@@ -51,6 +79,8 @@ class KnowledgeItemSummary(ORMModel):
     resolution: str | None
     resolution_status: ResolutionStatus
     approval_status: ApprovalStatus
+    knowledge_type: KnowledgeType = KnowledgeType.TROUBLESHOOTING
+    valid_to: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -69,7 +99,7 @@ class DiscoveryInfo(BaseModel):
     validation_flags: list[str]
 
 
-class KnowledgeItemDetail(KnowledgeItemSummary):
+class KnowledgeItemDetail(ContextFields, KnowledgeItemSummary):
     candidate_id: uuid.UUID | None
     discovery: DiscoveryInfo | None = None
     symptoms: list[Any]

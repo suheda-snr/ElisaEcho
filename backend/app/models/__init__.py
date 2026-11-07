@@ -6,6 +6,7 @@ from app.models.knowledge import (
     EMBEDDING_DIMENSION,
     KnowledgeCandidate,
     KnowledgeChunk,
+    KnowledgeEntityLink,
     KnowledgeEvidence,
     KnowledgeItem,
 )
@@ -16,8 +17,8 @@ from app.models.consolidation import (
     KnowledgeRelationship,
 )
 from app.models.feedback import TroubleshootingFeedback
-from app.models.integrations import IntegrationEvent, IntegrationState
-from app.models.reference import Equipment, Incident
+from app.models.integrations import EmailConnection, IntegrationEvent, IntegrationState
+from app.models.reference import Equipment, Incident, Site
 from app.models.troubleshooting import (
     GuideEdge,
     GuideNode,
@@ -29,6 +30,7 @@ from app.models.troubleshooting import (
 
 __all__ = [
     "EMBEDDING_DIMENSION",
+    "EmailConnection",
     "CommunicationSource",
     "ConversationThread",
     "Equipment",
@@ -40,6 +42,7 @@ __all__ = [
     "KnowledgeCandidate",
     "KnowledgeChunk",
     "KnowledgeConsolidationState",
+    "KnowledgeEntityLink",
     "KnowledgeEvidence",
     "KnowledgeGroup",
     "KnowledgeGroupMember",
@@ -48,6 +51,7 @@ __all__ = [
     "Message",
     "NodeEvidence",
     "SessionStep",
+    "Site",
     "TroubleshootingGuide",
     "TroubleshootingFeedback",
     "TroubleshootingSession",

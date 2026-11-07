@@ -10,17 +10,16 @@ Safety rules:
 
 from dataclasses import dataclass
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEVELOPMENT_ENVIRONMENTS, Settings
+from app.models import ConversationThread
 from app.schemas.threads import MessageIngest, ThreadIngest
-from app.seed.demo_data import (
-    DEMO_SOURCE_EXTERNAL_ID,
-    DEMO_SOURCE_NAME,
-    DEMO_SOURCE_TYPE,
-    DEMO_THREADS,
-    demo_message_url,
-)
+from app.seed.demo_data import DEMO_MAILBOX, DEMO_SOURCES, DEMO_THREADS, demo_message_url
+from app.seed.demo_emails import load_demo_emails
+from app.seed.inventory import ensure_inventory
+from app.services.email_ingest import import_emails
 from app.services.ingestion import upsert_messages, upsert_source, upsert_thread
 
 
@@ -47,15 +46,16 @@ async def seed_demo_data(session: AsyncSession, settings: Settings) -> SeedSumma
     """Upsert the demo conversations. The caller is responsible for committing."""
     ensure_seed_allowed(settings)
 
-    source_id = await upsert_source(
-        session,
-        name=DEMO_SOURCE_NAME,
-        source_type=DEMO_SOURCE_TYPE,
-        external_source_id=DEMO_SOURCE_EXTERNAL_ID,
-    )
+    await ensure_inventory(session)
+    source_ids = {}
+    for key, (name, source_type, external_id) in DEMO_SOURCES.items():
+        if key != "email":
+            source_ids[key] = await upsert_source(
+                session, name=name, source_type=source_type, external_source_id=external_id)
 
     message_count = 0
     for demo in DEMO_THREADS:
+        source_id = source_ids[demo.source]
         thread_id = await upsert_thread(
             session, source_id, ThreadIngest(external_thread_id=demo.external_id, title=demo.title)
         )
@@ -73,4 +73,9 @@ async def seed_demo_data(session: AsyncSession, settings: Settings) -> SeedSumma
         await upsert_messages(session, thread_id, messages)
         message_count += len(messages)
 
-    return SeedSummary(threads=len(DEMO_THREADS), messages=message_count)
+    emails = await import_emails(session, DEMO_MAILBOX, load_demo_emails(),
+                                 source_name=DEMO_SOURCES["email"][0])
+    message_count += emails.imported + emails.duplicates
+    email_threads = int(await session.scalar(select(func.count()).select_from(ConversationThread).where(
+        ConversationThread.communication_source_id == emails.source_id)) or 0)
+    return SeedSummary(threads=len(DEMO_THREADS) + email_threads, messages=message_count)

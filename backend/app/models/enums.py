@@ -6,7 +6,15 @@ from enum import StrEnum
 class SourceType(StrEnum):
     SLACK = "slack"
     TEAMS = "teams"
+    EMAIL = "email"
     SIMULATED = "simulated"
+
+
+class KnowledgeType(StrEnum):
+    """What kind of operational context a knowledge item captures."""
+
+    TROUBLESHOOTING = "troubleshooting"  # symptoms -> diagnosis -> action
+    SITE_ACCESS = "site_access"  # how to physically reach a site (keys, gates, contacts)
 
 
 class ThreadProcessingStatus(StrEnum):

@@ -16,6 +16,7 @@ Classification = Literal[
     "confirmed_resolution",
     "workaround_or_exception",
     "contradictory_or_incomplete",
+    "access_information",
 ]
 
 ActionOutcome = Literal[
@@ -52,6 +53,11 @@ class ExtractedEvidence(BaseModel):
 
 class ThreadAnalysis(BaseModel):
     classification: Classification
+    knowledge_type: Literal["troubleshooting", "site_access"] = Field(
+        default="troubleshooting",
+        description="site_access for how to physically reach a site (keys, barriers, gates, roads, "
+                    "contacts); troubleshooting otherwise."
+    )
     is_valuable_knowledge: bool = Field(
         description="True only if another engineer could reuse this to troubleshoot later."
     )
@@ -61,6 +67,28 @@ class ThreadAnalysis(BaseModel):
     root_cause: str | None = Field(description="Only if stated in the conversation, else null.")
     equipment_identifiers: list[str] = Field(
         description="Device/site/service identifiers copied exactly as written. Never invent."
+    )
+    site_identifiers: list[str] = Field(
+        default_factory=list,
+        description="Site identifiers copied exactly as written (e.g. SITE-PELLO-03). Never invent."
+    )
+    scope: Literal["this_equipment_only", "same_equipment_class", "unknown"] = Field(
+        default="unknown",
+        description=(
+            "same_equipment_class only if a message says it applies to that type/family/generation of "
+            "units (e.g. 'these older units'); this_equipment_only if it is specific to the device; "
+            "unknown otherwise."
+        )
+    )
+    scope_description: str | None = Field(
+        default=None,
+        description="The unit class as described in the conversation (e.g. 'older transmission units, "
+                    "installed around 2019'), or null."
+    )
+    trigger_events: list[str] = Field(
+        default_factory=list,
+        description="Operational events the knowledge is about, in a few words (e.g. 'SFP replacement'). "
+                    "Only events mentioned in the conversation."
     )
     incident_numbers: list[str] = Field(
         description="Incident/ticket numbers copied exactly as written. Usually empty."

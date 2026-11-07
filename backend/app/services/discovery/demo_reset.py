@@ -23,7 +23,7 @@ from app.models import (
     NodeEvidence,
     TroubleshootingGuide,
 )
-from app.seed.demo_data import DEMO_SOURCE_EXTERNAL_ID, DEMO_SOURCE_TYPE
+from app.seed.demo_data import DEMO_SOURCES
 from app.seed.seed import SeedNotAllowedError, ensure_seed_allowed
 from app.services.consolidation.service import prune_small_groups
 
@@ -47,10 +47,10 @@ async def reset_demo_data(session: AsyncSession, settings: Settings) -> ResetSum
     demo_threads = (
         select(ConversationThread.id)
         .join(CommunicationSource, ConversationThread.communication_source_id == CommunicationSource.id)
-        .where(
-            CommunicationSource.source_type == DEMO_SOURCE_TYPE,
-            CommunicationSource.external_source_id == DEMO_SOURCE_EXTERNAL_ID,
-        )
+        .where(or_(*[
+            (CommunicationSource.source_type == source_type) & (CommunicationSource.external_source_id == external)
+            for _, source_type, external in DEMO_SOURCES.values()
+        ]))
     )
     demo_candidates = select(KnowledgeCandidate.id).where(KnowledgeCandidate.thread_id.in_(demo_threads))
     demo_items = select(KnowledgeItem.id).where(KnowledgeItem.candidate_id.in_(demo_candidates))

@@ -12,6 +12,7 @@ import re
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from app.ai.consolidation_schema import GroupSummaryDraft, PairComparison
@@ -34,6 +35,7 @@ class CaseView:
     knowledge_id: uuid.UUID
     evidence: Mapping[str, uuid.UUID]  # label ("A1") -> message id
     corpus: str  # knowledge fields + evidence excerpts, used to verify copied values
+    latest_at: datetime | None = None  # newest evidence message (who is newer?)
 
 
 @dataclass
@@ -48,6 +50,8 @@ class ValidComparison:
     first_evidence_ids: list[uuid.UUID]
     second_evidence_ids: list[uuid.UUID]
     notes: list[str] = field(default_factory=list)
+    # "first" or "second": that case is outdated, replaced by the other one.
+    superseded: str | None = None
 
     @property
     def groups_together(self) -> bool:
@@ -129,6 +133,16 @@ def validate_comparison(raw: PairComparison, first: CaseView, second: CaseView) 
     if relationship == "unrelated":
         first_ids, second_ids = [], []
 
+    superseded = None
+    if raw.replaced_case in ("A", "B"):
+        old, new = (first, second) if raw.replaced_case == "A" else (second, first)
+        if relationship == "unrelated" or not first_ids or not second_ids:
+            notes.append("Replacement claim ignored: needs related cases with evidence on both sides.")
+        elif old.latest_at is None or new.latest_at is None or new.latest_at <= old.latest_at:
+            notes.append("Replacement claim ignored: the replacing case is not newer than the replaced one.")
+        else:
+            superseded = "first" if raw.replaced_case == "A" else "second"
+
     return ValidComparison(
         relationship_type=relationship,
         outcome_comparison=raw.outcome_comparison if relationship != "unrelated" else "not_comparable",
@@ -140,6 +154,7 @@ def validate_comparison(raw: PairComparison, first: CaseView, second: CaseView) 
         first_evidence_ids=first_ids,
         second_evidence_ids=second_ids,
         notes=notes,
+        superseded=superseded,
     )
 
 

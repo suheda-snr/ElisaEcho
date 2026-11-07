@@ -21,6 +21,7 @@ import {
   resolutionLabels,
 } from '@/components/discovery/labels'
 import { groupHeadline } from '@/components/consolidation/labels'
+import { ContextSection, KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
 import { feedbackSentence } from '@/components/feedback/labels'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
@@ -64,6 +65,8 @@ export default function Search() {
   const [text, setText] = useState(initial)
   const [resolution, setResolution] = useState<ResolutionStatus | ''>('')
   const [approval, setApproval] = useState<ApprovalStatus | ''>('')
+  const [includeOutdated, setIncludeOutdated] = useState(false)
+  const [asOf, setAsOf] = useState('')
   const [request, setRequest] = useState<SearchRequest | null>(
     initial.length >= 2 ? { query: initial, limit: 10, filters: {} } : null,
   )
@@ -82,6 +85,8 @@ export default function Search() {
       filters: {
         resolution_status: resolution || null,
         approval_status: approval || null,
+        include_outdated: includeOutdated,
+        as_of: asOf ? new Date(`${asOf}T12:00:00Z`).toISOString() : null,
       },
     })
   }
@@ -159,6 +164,25 @@ export default function Search() {
                 ['rejected', 'Rejected'],
               ]}
             />
+            <label className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={includeOutdated}
+                onChange={(e) => setIncludeOutdated(e.target.checked)}
+                className="size-4 accent-primary"
+              />
+              Include outdated knowledge
+            </label>
+            <label className="inline-flex items-center gap-1.5 text-muted-foreground">
+              Valid on
+              <input
+                type="date"
+                value={asOf}
+                onChange={(e) => setAsOf(e.target.value)}
+                className="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
+                aria-label="Show knowledge that was valid on this date"
+              />
+            </label>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -353,6 +377,8 @@ function ResultCard({
         </p>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
+        <OutdatedBadge validTo={result.valid_to} />
+        <KnowledgeTypeBadge type={result.knowledge_type} />
         <ResolutionBadge status={result.resolution_status} />
         <ApprovalBadge status={result.approval_status} />
         {[...result.equipment_identifiers, ...result.incident_numbers].map((id) => (
@@ -462,6 +488,8 @@ function ResultDetail({ result }: { result: SearchResult }) {
             </Link>
           </Section>
         )}
+
+        <ContextSection context={result} />
 
         <Section title="Problem">
           <p className="text-sm text-foreground">{result.problem_description}</p>

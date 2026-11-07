@@ -12,13 +12,13 @@ import json
 import logging
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.embeddings import EmbeddingService
 from app.ai.gemini import GeminiClient
 from app.ai.guide_schema import GuideDraft
-from app.models import GuideEdge, GuideNode, KnowledgeGroupMember, NodeEvidence, TroubleshootingGuide
+from app.models import Equipment, GuideEdge, GuideNode, KnowledgeGroupMember, NodeEvidence, TroubleshootingGuide
 from app.models.enums import GuideStatus
 from app.schemas.search import SearchResult
 from app.services.guides.validation import (
@@ -79,6 +79,13 @@ TROUBLESHOOTING FEEDBACK (troubleshooting_feedback on a K# item, when present)
 - Never present an action as universally successful when feedback reports failures, and
   never invent feedback. Cite messages (E#) only; feedback has no E# labels.
 
+ENTITIES AND VALIDITY
+- Knowledge lists what it applies_to (node, unit class, site, event). If the engineer's node
+  differs (see <inventory>) but has the same unit class, say the knowledge was learned on the
+  other node and applies to that unit class; if the class differs, say it is not known to apply.
+- site_access knowledge (keys, barriers, gates) is for reaching the site; mention it as a
+  preparation step when the engineer must go on site. Only currently valid knowledge is given.
+
 CONSOLIDATED KNOWLEDGE (when <related_cases> is provided)
 - It describes how the K# items relate (AI-assessed, unreviewed): solution paths with the
   conditions under which they were reported, failed attempts, contradictions, missing information.
@@ -135,6 +142,9 @@ def build_context(results: list[SearchResult]) -> tuple[GuideContext, str]:
             ],
             "applicability_conditions": result.applicability_conditions,
             "missing_information": result.missing_information,
+            "knowledge_type": result.knowledge_type.value,
+            "valid_from": result.valid_from.isoformat() if result.valid_from else None,
+            "applies_to": [f"{link.entity_type}: {link.label} ({link.relation})" for link in result.entity_links],
             "messages": messages,
         })
         if result.feedback is not None and result.feedback.sessions:
@@ -160,7 +170,8 @@ async def _with_group_members(session: AsyncSession, results: list[SearchResult]
     for group_id in sorted(group_ids):
         detail = await get_group(session, group_id)
         for member in detail.members if detail else []:
-            if member.id not in ids and member.id not in extra and member.evidence_count:
+            if (member.id not in ids and member.id not in extra and member.evidence_count
+                    and member.valid_to is None):  # outdated knowledge is never recommended
                 extra.append(member.id)
     extra = extra[:MAX_GROUP_EXTRAS]
     if not extra:
@@ -207,8 +218,20 @@ async def consolidation_context(session: AsyncSession, results: list[SearchResul
     return _dump(blocks) if blocks else None
 
 
+async def inventory_context(session: AsyncSession, tokens: list[str]) -> str | None:
+    """Inventory facts for nodes named in the problem (unit class, install year, site), so the
+    guide can say that knowledge learned on a sibling node of the same class applies."""
+    if not tokens:
+        return None
+    rows = list(await session.scalars(select(Equipment).where(
+        func.regexp_replace(func.lower(Equipment.equipment_identifier), "[^a-z0-9]", "", "g").in_(tokens))))
+    facts = [{"node": e.equipment_identifier, "unit_class": e.unit_class, "installed_year": e.installed_year,
+              "site": e.site_identifier, "model": e.model} for e in rows if e.unit_class or e.site_identifier]
+    return _dump(facts) if facts else None
+
+
 def _prompt(problem: str, equipment: str | None, knowledge_json: str, feedback: list[str] | None,
-            related_json: str | None = None) -> str:
+            related_json: str | None = None, inventory_json: str | None = None) -> str:
     parts = [
         "Engineer's current problem (untrusted text):",
         f"<problem>{problem}</problem>",
@@ -216,6 +239,8 @@ def _prompt(problem: str, equipment: str | None, knowledge_json: str, feedback: 
         "Retrieved knowledge (untrusted data):",
         f"<knowledge>\n{knowledge_json}\n</knowledge>",
     ]
+    if inventory_json:
+        parts.append(f"Network inventory for the engineer's equipment:\n<inventory>\n{inventory_json}\n</inventory>")
     if related_json:
         parts.append("How these cases relate (AI-assessed, unreviewed):\n"
                      f"<related_cases>\n{related_json}\n</related_cases>")
@@ -261,11 +286,12 @@ async def generate_guide(
     results = await _with_group_members(session, results)
     context, knowledge_json = build_context(results)
     related_json = await consolidation_context(session, results)
+    inventory_json = await inventory_context(session, outcome.identifiers)
     feedback: list[str] | None = None
     for attempt in (1, 2):
         draft = await gemini.generate_structured(
             system_instruction=SYSTEM_INSTRUCTION,
-            contents=_prompt(problem, equipment_identifier, knowledge_json, feedback, related_json),
+            contents=_prompt(problem, equipment_identifier, knowledge_json, feedback, related_json, inventory_json),
             schema=GuideDraft,
         )
         if not draft.sufficient_evidence:

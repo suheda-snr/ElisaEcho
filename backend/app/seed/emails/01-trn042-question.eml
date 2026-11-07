@@ -1,0 +1,16 @@
+Message-ID: <trn042-sfp-q@field-ops.elisa-echo.invalid>
+Date: Mon, 05 Oct 2026 08:58:00 +0000
+From: "Veikko Vikkelä (synthetic)" <veikko.vikkela@field-ops.elisa-echo.invalid>
+To: "Erkki Expert (synthetic)" <erkki.expert@network.elisa-echo.invalid>
+Cc: ops-knowledge@elisa-echo.invalid
+Subject: TRN-042 traffic not recovering after SFP replacement
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Hi Erkki,
+
+I replaced the SFP on transmission node TRN-042 this morning. Interface status is UP,
+optical levels look OK and the alarms have cleared, but traffic has not recovered.
+Should I replace the SFP again?
+
+Veikko

@@ -4,9 +4,11 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     discovery,
+    email,
     feedback,
     guides,
     health,
+    inventory,
     integrations,
     knowledge,
     knowledge_groups,
@@ -26,3 +28,5 @@ api_router.include_router(search.router)
 api_router.include_router(guides.router)
 api_router.include_router(feedback.router)
 api_router.include_router(integrations.router)
+api_router.include_router(email.router)
+api_router.include_router(inventory.router)

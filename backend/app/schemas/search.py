@@ -7,12 +7,16 @@ from pydantic import BaseModel, Field, StringConstraints
 from app.models.enums import ApprovalStatus, EvidenceType, ResolutionStatus, SourceType
 from app.schemas.consolidation import GroupBrief
 from app.schemas.feedback import FeedbackSummary
+from app.schemas.knowledge import ContextFields
 
 OptionalIdentifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)] | None
 
 
 class SearchFiltersIn(BaseModel):
     equipment_identifier: OptionalIdentifier = None
+    # Point-in-time: what was believed true at this moment (default: now).
+    as_of: datetime | None = None
+    include_outdated: bool = False
     incident_number: OptionalIdentifier = None
     approval_status: ApprovalStatus | None = None
     resolution_status: ResolutionStatus | None = None
@@ -56,7 +60,7 @@ class Ranking(BaseModel):
     matched_identifiers: list[str]
 
 
-class SearchResult(BaseModel):
+class SearchResult(ContextFields):
     id: uuid.UUID
     title: str
     problem_description: str

@@ -12,6 +12,8 @@ import { type FormEvent, type ReactNode, useState } from 'react'
 import { Link } from 'react-router'
 
 import { formatTime } from '@/components/discovery/labels'
+import { SourceConnectors } from '@/components/sources/SourceConnectors'
+import { InventoryCard } from '@/components/sources/InventoryCard'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -86,8 +88,10 @@ export default function Integrations() {
 
       {status.isError && <Notice tone="error">{getErrorMessage(status.error)}</Notice>}
 
+      <SourceConnectors slack={data} />
+
       <div className="grid gap-6 lg:grid-cols-12">
-        <div className="flex flex-col gap-6 lg:col-span-7">
+        <div id="slack-connection" className="flex flex-col gap-6 lg:col-span-7">
           {data ? (
             <SlackCard status={data} />
           ) : (
@@ -96,6 +100,7 @@ export default function Integrations() {
             </Card>
           )}
           {data && <ChannelsCard status={data} />}
+          <InventoryCard />
         </div>
         <div className="flex flex-col gap-6 lg:col-span-5">
           <EventsCard />
@@ -103,7 +108,8 @@ export default function Integrations() {
             <CardHeader>
               <CardTitle>Simulated feed (demo fallback)</CardTitle>
               <CardDescription>
-                Synthetic Teams-style conversations, clearly labelled as simulated
+                Synthetic conversations (incl. the Elisa TRN-042 case), clearly labelled as
+                simulated
               </CardDescription>
             </CardHeader>
             <CardContent className="flex items-center justify-between gap-3 text-sm">

@@ -135,6 +135,17 @@ When an engineer describes a new problem, retrieval combines three signals:
 
 Confirmed resolutions rank above unverified suggestions.
 
+### 3.6a Context assertions (Phase 7)
+
+Each knowledge item is a context assertion: `knowledge_type` (troubleshooting or site access),
+a validity period (`valid_from`, `valid_to`, `superseded_by`) and entity links
+(`knowledge_entity_links`: node observed on, unit class it applies to, site, triggering event),
+derived from the conversation and the network inventory (`equipment.unit_class`,
+`installed_year`, `sites`). This mirrors the reference model's context layer bound to graph
+entities with time validity; relational tables are used instead of a graph database, and the
+Knowledge Network page shows the resulting graph. Sources: Slack, simulated chat/Teams and
+email mailboxes.
+
 ### 3.7a Learn from reuse (Phase 6C)
 
 Engineers' troubleshooting outcomes are stored as `troubleshooting_feedback`, linked to the

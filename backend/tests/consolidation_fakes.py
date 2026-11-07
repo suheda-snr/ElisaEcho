@@ -25,6 +25,8 @@ class Rule:
     # Override evidence refs (e.g. invalid ones); default cites the first message of each case.
     first_refs: list[str] | None = None
     second_refs: list[str] | None = None
+    # Tag of the case the newer one makes outdated (None = no replacement).
+    replaced: str | None = None
 
 
 def tag(payload: dict[str, Any]) -> str:
@@ -77,6 +79,7 @@ class FakeConsolidationGemini:
             explanation=f"{ta} vs {tb}: {rule.relationship}",
             first_evidence_refs=rule.first_refs if rule.first_refs is not None else [a["messages"][0]["ref"]],
             second_evidence_refs=rule.second_refs if rule.second_refs is not None else [b["messages"][0]["ref"]],
+            replaced_case="A" if rule.replaced == ta else "B" if rule.replaced == tb else "none",
         )
 
 

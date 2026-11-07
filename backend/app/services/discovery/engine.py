@@ -24,9 +24,8 @@ from app.ai.gemini import GeminiClient
 from app.models import ConversationThread, Message
 from app.schemas.threads import MessageIngest, ThreadIngest
 from app.seed.demo_data import (
-    DEMO_SOURCE_EXTERNAL_ID,
-    DEMO_SOURCE_NAME,
-    DEMO_SOURCE_TYPE,
+    DEMO_MAILBOX,
+    DEMO_SOURCES,
     DEMO_THREADS,
     DemoMessage,
     DemoThread,
@@ -39,6 +38,9 @@ from app.services.consolidation.service import (
     refresh_group_for_item,
 )
 from app.services.discovery.analyzer import AnalysisOutcome, analyze_thread
+from app.seed.demo_emails import load_demo_emails
+from app.seed.inventory import ensure_inventory
+from app.services.email_ingest import import_emails
 from app.services.ingestion import upsert_messages, upsert_source, upsert_thread
 from app.services.retrieval.indexing import IndexOutcome, index_item
 
@@ -100,6 +102,9 @@ class DiscoveryEngine:
     consolidation: ConsolidationConfig | None = None
     consolidate: Callable[..., Awaitable[ConsolidationOutcome]] = consolidate_item
     refresh_group: Callable[..., Awaitable[str]] = refresh_group_for_item
+    # Demo feed extras: synthetic inventory before the feed, demo emails after the chat messages.
+    prepare_demo: Callable[[AsyncSession], Awaitable[None]] | None = ensure_inventory
+    demo_emails: Callable[[], list] = load_demo_emails
 
     simulation: SimulationState = field(default_factory=SimulationState)
     _events: deque[DiscoveryEvent] = field(default_factory=lambda: deque(maxlen=300))
@@ -333,9 +338,12 @@ class DiscoveryEngine:
         if self._sim_task is not None and not self._sim_task.done():
             return False
         plan = interleaved_demo_messages()
-        self.simulation = SimulationState(running=True, started_at=datetime.now(UTC), total=len(plan))
+        total = len(plan) + len(self.demo_emails())
+        self.simulation = SimulationState(running=True, started_at=datetime.now(UTC), total=total)
         self._sim_task = asyncio.create_task(self._simulate(plan))
-        self.emit("simulation_started", f"Simulated feed started ({len(plan)} messages, synthetic data)")
+        self.emit("simulation_started",
+                  f"Simulated feed started ({len(plan)} chat/Teams messages and {total - len(plan)} emails, "
+                  "synthetic data)")
         return True
 
     async def stop_simulation(self) -> bool:
@@ -352,6 +360,10 @@ class DiscoveryEngine:
     async def _simulate(self, plan: list[tuple[DemoThread, DemoMessage]]) -> None:
         thread_ids: dict[str, uuid.UUID] = {}
         try:
+            if self.prepare_demo is not None:
+                async with self.session_factory() as session:
+                    await self.prepare_demo(session)  # synthetic network inventory (additive)
+                    await session.commit()
             paused = False
             for demo_thread, demo_message in plan:
                 if demo_message.deferred and not paused:
@@ -367,6 +379,7 @@ class DiscoveryEngine:
                     # per-thread gap stays below the analysis debounce.
                     elapsed = asyncio.get_running_loop().time() - started
                     await asyncio.sleep(max(0.0, self.message_interval_seconds - elapsed))
+            await self._deliver_emails()
             self.simulation.finished_at = datetime.now(UTC)
             self.emit("simulation_finished", "All simulated messages delivered")
         except asyncio.CancelledError:
@@ -380,14 +393,32 @@ class DiscoveryEngine:
         finally:
             self.simulation.running = False
 
+    async def _deliver_emails(self) -> None:
+        """The synthetic shared mailbox receives the demo emails (one at a time, through the
+        real email pipeline); each email thread is then analyzed like a chat thread."""
+        for mail in self.demo_emails():
+            async with self.session_factory() as session:
+                result = await import_emails(session, DEMO_MAILBOX, [mail], source_name=DEMO_SOURCES["email"][0])
+                await session.commit()
+            if result.imported:
+                self.simulation.delivered += 1
+                for thread_id, title in result.threads:
+                    self._titles[thread_id] = title
+                    self.emit("message_received", f"Email from {mail.from_name or mail.from_address}: {title}",
+                              thread_id=thread_id)
+                    self.schedule_analysis(thread_id, title)
+            else:
+                self.simulation.skipped_duplicates += 1
+            await asyncio.sleep(self.message_interval_seconds)
+
     async def _deliver(self, demo_thread: DemoThread, demo_message: DemoMessage,
                        thread_ids: dict[str, uuid.UUID]) -> bool:
         async with self.session_factory() as session:
             thread_id = thread_ids.get(demo_thread.external_id)
             if thread_id is None:
+                name, source_type, external_id = DEMO_SOURCES[demo_thread.source]
                 source_id = await upsert_source(
-                    session, name=DEMO_SOURCE_NAME, source_type=DEMO_SOURCE_TYPE,
-                    external_source_id=DEMO_SOURCE_EXTERNAL_ID,
+                    session, name=name, source_type=source_type, external_source_id=external_id,
                 )
                 thread_id = await upsert_thread(
                     session, source_id,

@@ -51,7 +51,7 @@ async def test_threads_list_and_detail(
 ) -> None:
     await _seed(db_session, test_settings)
     threads = await _demo_threads(api)
-    assert len(threads) == len(DEMO_THREADS)
+    assert len(threads) == len([t for t in DEMO_THREADS if t.source == "chat"])  # this source only
     # Newest conversation first.
     last_times = [t["last_message_at"] for t in threads]
     assert last_times == sorted(last_times, reverse=True)

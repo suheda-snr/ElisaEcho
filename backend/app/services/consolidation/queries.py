@@ -151,6 +151,8 @@ async def get_group(session: AsyncSession, group_id: uuid.UUID) -> GroupDetail |
         **_case_ref(c), problem_description=c.item.problem_description, resolution=c.item.resolution,
         equipment=sorted(e.equipment_identifier for e in c.item.equipment),
         applicability_conditions=c.item.applicability_conditions, evidence_count=len(c.evidence),
+        knowledge_type=c.item.knowledge_type.value, valid_to=c.item.valid_to,
+        superseded_by_id=c.item.superseded_by_id,
     ) for c in ordered]
     brief = _brief(group, ordered)
     brief["solution_count"] = len(solutions)

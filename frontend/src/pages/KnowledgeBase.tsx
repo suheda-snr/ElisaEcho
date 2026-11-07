@@ -17,6 +17,7 @@ import {
   resolutionLabels,
 } from '@/components/discovery/labels'
 import { RelatedKnowledgeSection } from '@/components/consolidation/RelatedKnowledgeSection'
+import { ContextSection, KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
 import { RealWorldValidation } from '@/components/feedback/RealWorldValidation'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
@@ -27,13 +28,14 @@ import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/services/api'
 import type { KnowledgeItemDetail, ResolutionStatus } from '@/types/api'
 
-type Filter = 'all' | ResolutionStatus
+type Filter = 'all' | ResolutionStatus | 'site_access'
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'confirmed_in_conversation', label: 'Confirmed in chat' },
   { value: 'suggested', label: 'Suggested' },
   { value: 'unknown', label: 'Unclear' },
+  { value: 'site_access', label: 'Site access' },
 ]
 
 export default function KnowledgeBase() {
@@ -42,7 +44,13 @@ export default function KnowledgeBase() {
   const list = useKnowledgeItems(false)
   const items = useMemo(
     () =>
-      (list.data?.items ?? []).filter((k) => filter === 'all' || k.resolution_status === filter),
+      (list.data?.items ?? []).filter((k) =>
+        filter === 'all'
+          ? true
+          : filter === 'site_access'
+            ? k.knowledge_type === 'site_access'
+            : k.resolution_status === filter,
+      ),
     [list.data, filter],
   )
   const selectedId = params.get('item') ?? items[0]?.id ?? null
@@ -112,6 +120,8 @@ export default function KnowledgeBase() {
                     {k.problem_description}
                   </span>
                   <span className="flex flex-wrap gap-1.5">
+                    <OutdatedBadge validTo={k.valid_to} />
+                    <KnowledgeTypeBadge type={k.knowledge_type} />
                     <ResolutionBadge status={k.resolution_status} />
                     <Badge variant="outline">
                       {k.approval_status === 'approved' ? 'Expert-approved' : 'Not reviewed'}
@@ -194,6 +204,8 @@ function KnowledgeView({ item }: { item: KnowledgeItemDetail }) {
         <div className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold text-foreground">{item.title}</h2>
           <div className="flex flex-wrap items-center gap-1.5">
+            <OutdatedBadge validTo={item.valid_to} />
+            <KnowledgeTypeBadge type={item.knowledge_type} />
             <ResolutionBadge status={item.resolution_status} />
             <Badge variant="outline">
               {item.approval_status === 'approved' ? 'Expert-approved' : 'Not expert-reviewed'}
@@ -332,6 +344,8 @@ function KnowledgeView({ item }: { item: KnowledgeItemDetail }) {
             </ol>
           )}
         </Section>
+
+        <ContextSection context={item} />
 
         <RealWorldValidation item={item} />
 

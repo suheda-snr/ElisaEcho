@@ -78,6 +78,9 @@ class SolutionRead(BaseModel):
 
 class GroupMemberRead(CaseRef):
     problem_description: str
+    knowledge_type: str = "troubleshooting"
+    valid_to: datetime | None = None  # set = outdated (replaced by newer knowledge)
+    superseded_by_id: uuid.UUID | None = None
     resolution: str | None
     equipment: list[str]
     applicability_conditions: list[Any]

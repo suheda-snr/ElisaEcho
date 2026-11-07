@@ -182,8 +182,25 @@ class _Run:
         row.validation_notes = valid.notes
         row.model_name = self.gemini.model
         row.pair_fingerprint = fingerprint
+        old = {"first": source, "second": target}.get(valid.superseded or "")
+        row.superseded_knowledge_id = old.id if old else None
+        self.apply_validity(source, target, row)
         await self.session.flush()
         return row
+
+    def apply_validity(self, a: Case, b: Case, row: KnowledgeRelationship) -> None:
+        """Newer knowledge replaced older knowledge: close the older one's validity at the
+        moment the replacement was first reported. Undone if a re-comparison disagrees."""
+        for old, new in ((a, b), (b, a)):
+            if row.superseded_knowledge_id == old.id:
+                old.item.valid_to = new.earliest_at or datetime.now(UTC)
+                old.item.superseded_by_id = new.id
+                old.item.validity_note = (row.explanation or "Replaced by newer information.")[:1000]
+                self.notes.append(f"Marked {old.item.title!r} as outdated (replaced by newer knowledge).")
+            elif old.item.superseded_by_id == new.id:
+                old.item.valid_to = None
+                old.item.superseded_by_id = None
+                old.item.validity_note = None
 
     async def fits(self, case: Case, member_ids: list[uuid.UUID]) -> bool | None:
         """Strongly related to every (usable) member? None if some pair is unknown."""

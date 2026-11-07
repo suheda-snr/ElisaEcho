@@ -1,9 +1,9 @@
-"""Reference entities knowledge is linked to: equipment and incidents."""
+"""Reference entities knowledge is linked to: equipment (network inventory), sites, incidents."""
 
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Text
+from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, CreatedAtMixin, UUIDPrimaryKeyMixin, str_enum, tz_datetime
@@ -23,10 +23,25 @@ class Equipment(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     vendor: Mapped[str | None] = mapped_column(String(100))
     model: Mapped[str | None] = mapped_column(String(100))
     site_identifier: Mapped[str | None] = mapped_column(String(100), index=True)
+    # Inventory attributes (synthetic in the demo). Knowledge that says it applies to "these
+    # older units" is bound to the unit class, so it is found for sibling nodes too.
+    unit_class: Mapped[str | None] = mapped_column(String(100), index=True)
+    installed_year: Mapped[int | None] = mapped_column(Integer)
 
     knowledge_items: Mapped[list["KnowledgeItem"]] = relationship(
         secondary=knowledge_item_equipment, back_populates="equipment"
     )
+
+
+class Site(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
+    """A physical network site (inventory). Access knowledge is bound to sites."""
+
+    __tablename__ = "sites"
+
+    site_identifier: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str | None] = mapped_column(String(200))
+    region: Mapped[str | None] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
 
 
 class Incident(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):

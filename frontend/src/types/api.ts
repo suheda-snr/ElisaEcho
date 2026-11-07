@@ -128,6 +128,26 @@ export interface AttemptedAction {
   message_ids: string[]
 }
 
+export type KnowledgeType = 'troubleshooting' | 'site_access'
+
+export interface EntityLink {
+  entity_type: 'equipment' | 'unit_class' | 'site' | 'event'
+  label: string
+  relation: 'observed_on' | 'applies_to' | 'located_at' | 'access_to' | 'triggered_by'
+  source: 'conversation' | 'inventory'
+}
+
+/** Context-assertion fields: type, time validity and entity bindings. */
+export interface ContextFields {
+  knowledge_type: KnowledgeType
+  valid_from: string | null
+  /** null = still believed true */
+  valid_to: string | null
+  validity_note: string | null
+  superseded_by: { id: string; title: string } | null
+  entity_links: EntityLink[]
+}
+
 export interface KnowledgeItemSummary {
   id: string
   title: string
@@ -135,11 +155,13 @@ export interface KnowledgeItemSummary {
   resolution: string | null
   resolution_status: ResolutionStatus
   approval_status: ApprovalStatus
+  knowledge_type: KnowledgeType
+  valid_to: string | null
   created_at: string
   updated_at: string
 }
 
-export interface KnowledgeItemDetail extends KnowledgeItemSummary {
+export interface KnowledgeItemDetail extends ContextFields, KnowledgeItemSummary {
   candidate_id: string | null
   symptoms: string[]
   root_cause: string | null
@@ -191,6 +213,9 @@ export interface SearchFilters {
   incident_number?: string | null
   approval_status?: ApprovalStatus | null
   resolution_status?: ResolutionStatus | null
+  /** ISO time: what was believed true then */
+  as_of?: string | null
+  include_outdated?: boolean
 }
 
 export interface SearchRequest {
@@ -225,7 +250,7 @@ export interface SearchRanking {
   matched_identifiers: string[]
 }
 
-export interface SearchResult {
+export interface SearchResult extends ContextFields {
   id: string
   title: string
   problem_description: string
@@ -341,6 +366,9 @@ export interface SolutionPath {
 
 export interface GroupMember extends CaseRef {
   problem_description: string
+  knowledge_type: KnowledgeType
+  valid_to: string | null
+  superseded_by_id: string | null
   resolution: string | null
   equipment: string[]
   applicability_conditions: string[]
@@ -629,4 +657,86 @@ export interface IntegrationEvent {
   message: string
   channel_id: string | null
   thread_id: string | null
+}
+
+// ---- email source and network inventory ----------------------------------------------------
+
+export interface Mailbox {
+  id: string
+  name: string
+  mailbox: string
+  enabled: boolean
+  threads: number
+  messages: number
+}
+
+export interface EmailImportResult {
+  mailbox: string
+  imported: number
+  duplicates: number
+  threads: { id: string; title: string }[]
+  skipped_reason: string | null
+  note: string
+}
+
+export interface InventorySite {
+  site_identifier: string
+  name: string | null
+  region: string | null
+  description: string | null
+  knowledge_count: number
+}
+
+export interface InventoryNode {
+  equipment_identifier: string
+  equipment_type: string | null
+  vendor: string | null
+  model: string | null
+  unit_class: string | null
+  installed_year: number | null
+  site_identifier: string | null
+  knowledge_count: number
+  class_knowledge_count: number
+}
+
+export interface Inventory {
+  sites: InventorySite[]
+  nodes: InventoryNode[]
+  note: string
+}
+
+export interface EmailConnection {
+  id: string
+  host: string
+  port: number
+  username: string
+  folder: string
+  since_days: number
+  max_per_poll: number
+  enabled: boolean
+  status: 'connected' | 'error' | 'connecting'
+  last_error: string | null
+  last_checked_at: string | null
+  imported_count: number
+  folder_message_count: number | null
+}
+
+export interface EmailConnectionCreate {
+  host: string
+  port: number
+  username: string
+  password: string
+  folder: string
+  since_days: number
+  max_per_poll: number
+}
+
+export interface EmailCheckResult {
+  status: string
+  fetched: number
+  imported: number
+  duplicates: number
+  remaining: number
+  threads: string[]
+  error: string | null
 }

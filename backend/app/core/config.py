@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     # Optional bootstrap allowlist: channel IDs to enable for monitoring at worker start.
     slack_channel_ids: Annotated[list[str], NoDecode] = []
 
+    # Email (IMAP) source. Connections are added on the Integrations page (development only).
+    # Key for encrypting stored mailbox passwords (Fernet). If unset, a key is generated once in
+    # backend/.local/credentials.key (git-ignored).
+    email_credentials_key: SecretStr | None = None
+    email_poll_seconds: float = 60.0
+
     # Hybrid search.
     # Semantic matches are kept only if cosine similarity >= this floor AND within the margin
     # of the best match. Calibrated on the demo data with gemini-embedding-2 (unrelated
@@ -94,6 +100,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "database_url", "gemini_api_key", "slack_bot_token", "slack_app_token", "slack_signing_secret",
+        "email_credentials_key",
         mode="before",
     )
     @classmethod

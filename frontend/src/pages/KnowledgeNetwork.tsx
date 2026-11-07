@@ -18,6 +18,7 @@ import {
   solutionOutcomeLabels,
 } from '@/components/consolidation/labels'
 import { RelationshipCard } from '@/components/consolidation/RelationshipCard'
+import { KnowledgeTypeBadge, OutdatedBadge } from '@/components/context/ContextInfo'
 import { resolutionLabels } from '@/components/discovery/labels'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
@@ -280,7 +281,9 @@ function GroupView({
                     </span>
                     {m.title}
                   </Link>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <OutdatedBadge validTo={m.valid_to} />
+                    <KnowledgeTypeBadge type={m.knowledge_type} />
                     {resolutionLabels[m.resolution_status]}
                   </span>
                 </div>

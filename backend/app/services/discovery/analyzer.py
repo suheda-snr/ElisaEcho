@@ -39,9 +39,10 @@ from app.models import (
     KnowledgeItem,
     Message,
 )
-from app.models.enums import ResolutionStatus, ThreadProcessingStatus
+from app.models.enums import KnowledgeType, ResolutionStatus, ThreadProcessingStatus
 from app.services.discovery.prompt import SYSTEM_INSTRUCTION, build_prompt
 from app.services.discovery.validation import ValidatedAnalysis, validate_analysis
+from app.services.entities import link_specs, sync_links
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ async def _candidate(session: AsyncSession, thread_id: uuid.UUID) -> KnowledgeCa
             selectinload(KnowledgeCandidate.knowledge_item).selectinload(KnowledgeItem.evidence),
             selectinload(KnowledgeCandidate.knowledge_item).selectinload(KnowledgeItem.equipment),
             selectinload(KnowledgeCandidate.knowledge_item).selectinload(KnowledgeItem.incidents),
+            selectinload(KnowledgeCandidate.knowledge_item).selectinload(KnowledgeItem.entity_links),
         )
         .execution_options(populate_existing=True)
     )
@@ -209,7 +211,7 @@ async def _persist(
     if validated.creates_knowledge_item:
         if item is None:
             item = KnowledgeItem(candidate=candidate, title="", problem_description="")
-            item.evidence, item.equipment, item.incidents = [], [], []
+            item.evidence, item.equipment, item.incidents, item.entity_links = [], [], [], []
             session.add(item)
         item.title = candidate.title
         item.problem_description = validated.problem_description or candidate.title
@@ -219,10 +221,17 @@ async def _persist(
         item.attempted_actions = validated.attempted_actions
         item.applicability_conditions = validated.applicability_conditions
         item.resolution_status = validated.resolution_status
+        item.knowledge_type = KnowledgeType(validated.knowledge_type)
+        # Valid since the earliest evidence message; valid_to is only set when newer knowledge
+        # replaces it (consolidation), never by extraction.
+        evidence_ids = {e.message_id for e in validated.evidence}
+        times = [m.sent_at for m in analyzed if m.id in evidence_ids]
+        item.valid_from = min(times) if times else (item.valid_from or datetime.now(UTC))
         # approval_status is intentionally left untouched (defaults to "unreviewed").
         await _sync_evidence(item, validated)
         item.equipment = await _equipment(session, validated.equipment_identifiers)
         item.incidents = await _incidents(session, validated.incident_numbers, item.title)
+        sync_links(item, await link_specs(session, validated))
     elif item is not None:
         # Re-analysis no longer supports the earlier knowledge (e.g. messages were deleted
         # or edited): keep the record for review but drop its evidence and certainty.

@@ -22,6 +22,9 @@ Rules:
 - Never invent equipment, versions or outcomes.
 - Cite messages with their refs: A-refs only in first_evidence_refs, B-refs only in
   second_evidence_refs.
+- Knowledge changes over time. If the newer case (see last_message_at) explicitly says the
+  older case's information is no longer valid, set replaced_case to the OUTDATED case and use
+  same_problem or potentially_conflicting. Otherwise replaced_case is none.
 """
 
 SUMMARY_INSTRUCTION = """\
