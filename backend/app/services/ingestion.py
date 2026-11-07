@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CommunicationSource, ConversationThread, Message
-from app.models.enums import SourceType
+from app.models.enums import SourceType, ThreadProcessingStatus
 from app.schemas.threads import MessageIngest, ThreadIngest
 
 
@@ -77,7 +77,9 @@ async def upsert_messages(
 
 
 async def refresh_thread_timestamps(session: AsyncSession, thread_id: uuid.UUID) -> None:
-    """Derive started_at / last_message_at from the thread's messages."""
+    """Derive started_at / last_message_at from the thread's messages and queue the
+    thread for (re-)analysis. Unchanged content is detected later by fingerprint, so
+    re-delivered messages do not trigger new Gemini calls."""
     bounds = (
         select(func.min(Message.sent_at), func.max(Message.sent_at))
         .where(Message.thread_id == thread_id)
@@ -86,5 +88,9 @@ async def refresh_thread_timestamps(session: AsyncSession, thread_id: uuid.UUID)
     await session.execute(
         update(ConversationThread)
         .where(ConversationThread.id == thread_id)
-        .values(started_at=started_at, last_message_at=last_message_at)
+        .values(
+            started_at=started_at,
+            last_message_at=last_message_at,
+            processing_status=ThreadProcessingStatus.PENDING,
+        )
     )

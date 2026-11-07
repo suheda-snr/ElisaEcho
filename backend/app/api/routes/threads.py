@@ -1,10 +1,14 @@
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import DbSession, PaginationDep
+from app.api.deps import DbSession, PaginationDep, require_development
+from app.api.routes.discovery import get_discovery_engine
 from app.models.enums import ThreadProcessingStatus
 from app.schemas.common import Page
+from app.schemas.discovery import AnalysisResult
+from app.services.discovery.engine import DiscoveryEngine
 from app.schemas.threads import MessageRead, ThreadDetail, ThreadRead
 from app.services import threads as service
 
@@ -65,3 +69,31 @@ async def list_thread_messages(
         limit=page.limit,
         offset=page.offset,
     )
+
+
+@router.post(
+    "/{thread_id}/analyze",
+    response_model=AnalysisResult,
+    summary="Analyze a thread now (development only)",
+    dependencies=[Depends(require_development)],
+    responses={
+        **_NOT_FOUND,
+        403: {"description": "Not available outside development"},
+        503: {"description": "Gemini not configured or unavailable"},
+    },
+)
+async def analyze_thread_now(
+    thread_id: uuid.UUID,
+    session: DbSession,
+    engine: Annotated[DiscoveryEngine, Depends(get_discovery_engine)],
+    force: bool = False,
+) -> AnalysisResult:
+    """Runs the same analysis the pipeline runs automatically. With `force=false` an
+    unchanged thread is not sent to Gemini again."""
+    if not await service.thread_exists(session, thread_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found.")
+    await session.close()  # the engine uses its own session
+    outcome = await engine.run_analysis(thread_id, force=force)
+    if outcome.status in ("not_configured", "failed", "deferred"):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=outcome.error)
+    return AnalysisResult(**vars(outcome))

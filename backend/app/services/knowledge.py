@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import KnowledgeEvidence, KnowledgeItem
 from app.models.enums import ApprovalStatus, ResolutionStatus
+from app.schemas.knowledge import DiscoveryInfo
 
 
 async def list_knowledge_items(
@@ -37,5 +38,23 @@ async def get_knowledge_item(session: AsyncSession, item_id: uuid.UUID) -> Knowl
             selectinload(KnowledgeItem.evidence).selectinload(KnowledgeEvidence.message),
             selectinload(KnowledgeItem.equipment),
             selectinload(KnowledgeItem.incidents),
+            selectinload(KnowledgeItem.candidate),
         )
+    )
+
+
+def discovery_info(item: KnowledgeItem) -> DiscoveryInfo | None:
+    candidate = item.candidate
+    if candidate is None:
+        return None
+    data = candidate.extracted_data or {}
+    return DiscoveryInfo(
+        thread_id=candidate.thread_id,
+        classification=candidate.candidate_type,
+        detection_status=candidate.detection_status.value,
+        model_name=candidate.model_name,
+        model_confidence=candidate.confidence,
+        analyzed_at=data.get("analyzed_at"),
+        missing_information=data.get("analysis", {}).get("missing_information", []),
+        validation_flags=data.get("validation", {}).get("flags", []),
     )

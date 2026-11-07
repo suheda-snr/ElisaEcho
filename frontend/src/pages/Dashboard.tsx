@@ -1,18 +1,14 @@
 import { ArrowRight, CircleAlert, CircleCheck, LoaderCircle, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useDiscoveryStatus } from '@/hooks/useDiscovery'
 import { useHealth } from '@/hooks/useHealth'
 import { navItems } from '@/lib/navigation'
 import { getErrorMessage } from '@/services/api'
-
-// Nothing can be captured until ingestion exists, so every count is genuinely zero.
-const sourceTypeCounts = ['Text', 'Audio', 'Video', 'Image', 'PDF'].map((source) => ({
-  source,
-  items: 0,
-}))
+import type { DiscoveryMetrics } from '@/types/api'
 
 function ConnectionCard() {
   const { data, error, isPending, isError, isFetching, refetch } = useHealth()
@@ -59,45 +55,121 @@ function ConnectionCard() {
   )
 }
 
-function KnowledgeSourcesCard() {
+const tiles: { key: keyof DiscoveryMetrics; label: string; hint: string }[] = [
+  {
+    key: 'messages_processed',
+    label: 'Messages processed',
+    hint: 'Ingested from communication sources',
+  },
+  { key: 'threads_analyzed', label: 'Threads analyzed', hint: 'Conversations analyzed by Gemini' },
+  {
+    key: 'candidates_detected',
+    label: 'Knowledge candidates',
+    hint: 'Conversations with technical knowledge',
+  },
+  {
+    key: 'confirmed_resolutions',
+    label: 'Confirmed resolutions',
+    hint: 'Fix confirmed in conversation',
+  },
+  {
+    key: 'threads_failed',
+    label: 'Processing failures',
+    hint: 'Threads whose last analysis failed',
+  },
+]
+
+function MetricTiles({ metrics }: { metrics: DiscoveryMetrics | null | undefined }) {
+  return (
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+      {tiles.map((tile) => (
+        <Card key={tile.key} size="sm">
+          <CardContent>
+            <p className="text-xs text-muted-foreground">{tile.label}</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground tabular-nums">
+              {metrics ? metrics[tile.key].toLocaleString() : '–'}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{tile.hint}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function OutcomesCard({ metrics }: { metrics: DiscoveryMetrics }) {
+  const rows = [
+    { outcome: 'Confirmed', conversations: metrics.confirmed_resolutions },
+    { outcome: 'Suggested', conversations: metrics.unverified_suggestions },
+    {
+      outcome: 'No fix yet',
+      conversations: Math.max(0, metrics.candidates_detected - metrics.knowledge_items),
+    },
+    { outcome: 'Ignored', conversations: metrics.conversations_ignored },
+    { outcome: 'Pending', conversations: metrics.threads_pending },
+  ]
+  const empty = rows.every((r) => r.conversations === 0)
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Captured knowledge by source</CardTitle>
-        <CardDescription>
-          No knowledge has been captured yet. Counts will appear once ingestion is available.
-        </CardDescription>
+        <CardTitle>Discovery outcomes</CardTitle>
+        <CardDescription>Conversations by what the analysis found</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={sourceTypeCounts} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
-              <CartesianGrid vertical={false} stroke="var(--border)" />
-              <XAxis
-                dataKey="source"
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-              />
-              <YAxis
-                allowDecimals={false}
-                domain={[0, 5]}
-                ticks={[0, 1, 2, 3, 4, 5]}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-              />
-              <Bar dataKey="items" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {empty ? (
+          <p className="flex h-48 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+            No conversations yet. Start the simulation on the Live Discovery page.
+          </p>
+        ) : (
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis
+                  dataKey="outcome"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                />
+                <Tooltip
+                  cursor={{ fill: 'var(--muted)' }}
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: 'var(--popover)',
+                    color: 'var(--popover-foreground)',
+                    fontSize: 12,
+                  }}
+                />
+                <Bar
+                  dataKey="conversations"
+                  isAnimationActive={false}
+                  name="Conversations"
+                  fill="var(--chart-1)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
 }
 
 export default function Dashboard() {
+  const status = useDiscoveryStatus()
+  const metrics = status.data?.metrics
   const modules = navItems.filter((item) => item.to !== '/')
+  const metricsProblem = status.isError ? getErrorMessage(status.error) : status.data?.metrics_error
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,14 +178,36 @@ export default function Dashboard() {
           Welcome to Elisa Echo
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Preserve operational knowledge from network engineers and turn it into guided,
-          evidence-backed troubleshooting.
+          Operational knowledge discovered automatically from engineers&apos; conversations,
+          preserved with the messages that prove it.
         </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium text-foreground">Knowledge discovery</h2>
+        {metricsProblem && (
+          <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <CircleAlert className="size-4" aria-hidden="true" />
+            Metrics unavailable: {metricsProblem}
+          </p>
+        )}
+        <MetricTiles metrics={status.isPending ? undefined : metrics} />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ConnectionCard />
-        <KnowledgeSourcesCard />
+        {metrics ? (
+          <OutcomesCard metrics={metrics} />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Discovery outcomes</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {status.isPending ? 'Loading…' : 'Not available without a database connection.'}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <section>

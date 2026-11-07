@@ -2,6 +2,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.models.enums import (
     ApprovalStatus,
     EvidenceType,
@@ -50,8 +52,23 @@ class KnowledgeItemSummary(ORMModel):
     updated_at: datetime
 
 
+class DiscoveryInfo(BaseModel):
+    """How the item was discovered. `model_confidence` is the AI's self-assessment, not
+    verification; `validation_flags` lists what the server corrected or rejected."""
+
+    thread_id: uuid.UUID
+    classification: str
+    detection_status: str
+    model_name: str | None
+    model_confidence: float | None
+    analyzed_at: datetime | None
+    missing_information: list[str]
+    validation_flags: list[str]
+
+
 class KnowledgeItemDetail(KnowledgeItemSummary):
     candidate_id: uuid.UUID | None
+    discovery: DiscoveryInfo | None = None
     symptoms: list[Any]
     root_cause: str | None
     attempted_actions: list[Any]

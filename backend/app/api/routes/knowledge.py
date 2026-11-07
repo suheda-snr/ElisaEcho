@@ -43,4 +43,6 @@ async def get_knowledge(item_id: uuid.UUID, session: DbSession) -> KnowledgeItem
     item = await service.get_knowledge_item(session, item_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge item not found.")
-    return KnowledgeItemDetail.model_validate(item)
+    detail = KnowledgeItemDetail.model_validate(item)
+    detail.discovery = service.discovery_info(item)
+    return detail

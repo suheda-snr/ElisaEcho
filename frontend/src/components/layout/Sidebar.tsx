@@ -12,7 +12,7 @@ export function Sidebar() {
         <SidebarNav />
       </div>
       <div className="border-t border-sidebar-border px-5 py-4 text-xs text-muted-foreground">
-        Phase 1 · Foundation
+        Phase 5 · Guided troubleshooting
       </div>
     </aside>
   )

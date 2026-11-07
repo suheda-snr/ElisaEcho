@@ -62,3 +62,41 @@ class IncidentSeverity(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
+
+class GuideStatus(StrEnum):
+    READY = "ready"
+    # Retrieval found too little evidence; no steps were generated (nothing invented).
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
+class GuideNodeType(StrEnum):
+    START = "start"
+    QUESTION = "question"
+    DIAGNOSTIC = "diagnostic"
+    RECOMMENDATION = "recommendation"
+    RESOLUTION = "resolution"
+    ESCALATION = "escalation"
+
+
+class SupportLevel(StrEnum):
+    """How strongly a guide step is backed by evidence (derived server-side)."""
+
+    APPROVED = "approved"  # every source knowledge item was approved by an expert
+    CONFIRMED_IN_CONVERSATION = "confirmed_in_conversation"
+    SUGGESTED = "suggested"
+    CONFLICTING = "conflicting"
+    NONE = "none"  # navigation step without evidence (start, question, escalation)
+
+
+class SessionStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    UNRESOLVED = "unresolved"
+
+
+class SessionStepType(StrEnum):
+    ANSWER = "answer"
+    OBSERVATION = "observation"
+    BACK = "back"
+    COMPLETE = "complete"

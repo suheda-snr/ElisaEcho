@@ -24,6 +24,9 @@ class DemoMessage:
     author_name: str
     sent_at: datetime
     content: str
+    # Live feed only: deliver after the other conversations have finished and the analysis
+    # window has passed (the engineer goes off to try the suggested fix).
+    deferred: bool = False
 
 
 @dataclass(frozen=True)
@@ -46,8 +49,10 @@ PETRI = ("demo-user-petri", "Petri Salo (synthetic)")
 SANNA = ("demo-user-sanna", "Sanna Mäkelä (synthetic)")
 
 
-def _m(thread: str, n: int, who: tuple[str, str], sent_at: datetime, content: str) -> DemoMessage:
-    return DemoMessage(f"{thread}-m{n:02d}", who[0], who[1], sent_at, content)
+def _m(
+    thread: str, n: int, who: tuple[str, str], sent_at: datetime, content: str, deferred: bool = False
+) -> DemoMessage:
+    return DemoMessage(f"{thread}-m{n:02d}", who[0], who[1], sent_at, content, deferred)
 
 
 DEMO_THREADS: tuple[DemoThread, ...] = (
@@ -64,9 +69,11 @@ DEMO_THREADS: tuple[DemoThread, ...] = (
                "Restart the affected service instead, in our case it was the DHCP relay "
                "service on S42-RTR-01. A full reboot only hides it for a while."),
             _m("site42", 3, AINO, _t(14, 8, 21),
-               "Restarted only the DHCP relay service. Leases are being handed out again."),
+               "Restarted only the DHCP relay service. Leases are being handed out again.",
+               deferred=True),
             _m("site42", 4, AINO, _t(14, 9, 35),
-               "That worked. The connection is stable now, no drops in the last hour."),
+               "That worked. The connection is stable now, no drops in the last hour.",
+               deferred=True),
         ),
     ),
     DemoThread(
@@ -117,6 +124,23 @@ DEMO_THREADS: tuple[DemoThread, ...] = (
             _m("pe03", 5, LEENA, _t(22, 8, 31),
                "MTU was 1500 on our side and 9000 on the peer. Aligned it to 9000 and the "
                "session has been up for 20 minutes now. Leaving BFD as is for now."),
+        ),
+    ),
+    DemoThread(
+        external_id="demo-thread-site17-connectivity",
+        title="Connection drops at Site 17",
+        # Same symptoms as Site 42, different cause and fix (a second expert's knowledge).
+        scenario="alternative_fix",
+        messages=(
+            _m("site17", 1, PETRI, _t(28, 9, 10),
+               "Site 17 customers behind S17-RTR-02 drop every half hour, looks like the Site 42 "
+               "issue. I restarted the DHCP relay service like last time but the drops continue."),
+            _m("site17", 2, LEENA, _t(28, 9, 18),
+               "Then it is probably not the relay. Check the DHCP lease time on S17-RTR-02. After "
+               "last week's config template push some routers got a 60 second lease."),
+            _m("site17", 3, PETRI, _t(28, 9, 41),
+               "Lease time was 60 seconds. Set it back to 24 hours and the drops stopped. "
+               "Restarting the relay service alone did not help on this router."),
         ),
     ),
 )

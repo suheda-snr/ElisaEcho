@@ -151,6 +151,12 @@ class KnowledgeChunk(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
+        # Full-text search; must match the expression used in app/services/retrieval/search.py.
+        Index(
+            "ix_knowledge_chunks_content_fts",
+            text("to_tsvector('english'::regconfig, content)"),
+            postgresql_using="gin",
+        ),
     )
 
     knowledge_item_id: Mapped[uuid.UUID] = mapped_column(

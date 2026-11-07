@@ -1,4 +1,4 @@
-import { LayoutDashboard, Network, Search, Upload, Workflow, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Network, Radar, Search, Workflow, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   to: string
@@ -15,10 +15,10 @@ export const navItems: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    to: '/capture',
-    label: 'Capture Knowledge',
-    description: 'Contribute operational knowledge from engineers',
-    icon: Upload,
+    to: '/discovery',
+    label: 'Live Discovery',
+    description: 'Knowledge discovered automatically from engineer conversations',
+    icon: Radar,
   },
   {
     to: '/search',

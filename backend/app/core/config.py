@@ -32,8 +32,35 @@ class Settings(BaseSettings):
     database_max_overflow: int = 5
     database_connect_timeout_seconds: int = 5
 
-    # Phase 3. Optional for now.
+    # Google Gemini (knowledge discovery). Optional: without a key the API runs,
+    # but thread analysis reports "Gemini not configured" instead of guessing.
     gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.8-flash"
+    gemini_timeout_seconds: float = 60.0
+    # Total attempts per analysis request, including the first (bounded retries).
+    gemini_max_attempts: int = 3
+    # Embeddings for semantic search. Stored and query vectors always use the same model
+    # and the database dimension (768). Supported families: gemini-embedding-2 (task given
+    # as text prefix) and gemini-embedding-001 (task_type parameter).
+    gemini_embedding_model: str = "gemini-embedding-2"
+
+    # Hybrid search.
+    # Semantic matches are kept only if cosine similarity >= this floor AND within the margin
+    # of the best match. Calibrated on the demo data with gemini-embedding-2 (unrelated
+    # queries scored <= 0.62, relevant top hits >= 0.68); re-check after changing models.
+    search_min_similarity: float = 0.65
+    search_similarity_margin: float = 0.06
+    # Candidates fetched per retriever before rank fusion.
+    search_candidate_pool: int = 20
+
+    # Discovery pipeline (in-process, development MVP).
+    # Wait this long after the last message in a thread before analyzing it, so a
+    # burst of messages becomes one Gemini call. Keep it above the per-thread message
+    # gap of the simulated feed (interval x number of interleaved threads).
+    discovery_debounce_seconds: float = 12.0
+    discovery_max_concurrent_analyses: int = 2
+    # Delay between simulated messages.
+    simulation_message_interval_seconds: float = 2.0
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -47,9 +74,9 @@ class Settings(BaseSettings):
     def normalize_environment(cls, value: str) -> str:
         return value.strip().lower()
 
-    @field_validator("database_url", mode="before")
+    @field_validator("database_url", "gemini_api_key", mode="before")
     @classmethod
-    def empty_database_url_is_none(cls, value: object) -> object:
+    def empty_secret_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
         return value

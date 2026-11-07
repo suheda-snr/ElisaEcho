@@ -10,10 +10,10 @@ only when the team explicitly decides to begin it.
 | --- | --- | --- |
 | 1 | Project foundation and Docker | **Done** |
 | 2 | Database schema | **Done** |
-| 3 | Simulated live ingestion and automatic knowledge extraction | Next |
-| 4 | Vector, keyword and contextual retrieval | Planned |
-| 5 | Evidence-backed guided troubleshooting | Planned |
-| 6 | Knowledge consolidation, expert feedback and demo polish | Planned |
+| 3 | Simulated live ingestion and automatic knowledge extraction | **Done** |
+| 4 | Vector, keyword and contextual retrieval | **Done** |
+| 5 | Evidence-backed guided troubleshooting | **Done** |
+| 6 | Knowledge consolidation, expert feedback and demo polish | Next |
 
 ---
 
@@ -60,63 +60,77 @@ provenance.
 
 ---
 
-## Phase 3: Simulated live ingestion and automatic extraction
+## Phase 3: Simulated live ingestion and automatic extraction (done)
 
 **Goal:** demonstrate the core feature: knowledge discovered automatically from conversations.
 
-**Scope**
+**Delivered**
 
-- A synthetic conversation dataset of realistic telecom troubleshooting threads, including
-  ordinary chatter, unverified suggestions and confirmed resolutions
-- A simulated live feed that replays those conversations through the ingestion path
-- Gemini-based classification (ordinary / unverified suggestion / confirmed resolution)
-- Gemini-based structured extraction validated against Pydantic schemas, with provenance links to
-  source messages
-- Linking of knowledge items to equipment, incidents and experts
-- **Live Discovery page** (repurposed `/capture`): incoming conversations with the knowledge
-  identified in them, as it happens
-- **Dashboard:** discovered knowledge and recent processing activity
+- Gemini client (`google-genai`, model from `GEMINI_MODEL`, default `gemini-3.8-flash`) with
+  structured Pydantic output, timeouts and bounded exponential-backoff retries
+- Six-way classification: irrelevant, incident without resolution, unverified suggestion,
+  confirmed resolution, workaround/exception, contradictory/incomplete
+- Server-side validation: message references limited to the analyzed thread, identifiers must
+  appear in the text, confirmations need a confirming message, approval never set automatically
+- One candidate and one knowledge item per thread, updated in place as the thread evolves;
+  fingerprinting skips unchanged threads; evidence and equipment links kept in sync
+- In-process simulated feed (round-robin across threads), per-thread debounce, concurrency limit,
+  event log; start / stop / reset (development only)
+- Live Discovery page (`/discovery`, replaces `/capture`) and real metrics on the Dashboard
+- Unit tests with mocked Gemini and integration tests on an isolated database
 
-**Done when** a synthetic thread like "service X is failing" → "restart the service, not the
-device" → "that worked" automatically produces a confirmed knowledge item that shows its source
-messages.
+**No migration was needed:** the analysis fingerprint and raw model output live in
+`knowledge_candidates.extracted_data`.
 
-**Out of scope:** real Slack, Teams or email connections.
+**Known limitations:** the pipeline state lives in the API process (single process, lost on
+restart); only the synthetic source is connected. See the README for details.
 
 ---
 
-## Phase 4: Retrieval
+## Phase 4: Retrieval (done)
 
 **Goal:** an engineer describing a new problem finds the relevant past knowledge.
 
-**Scope**
+**Delivered**
 
-- Embedding generation for knowledge items, stored in pgvector
-- Semantic vector search, keyword search on identifiers and error codes, and contextual retrieval
-  through linked equipment and incidents
-- Ranking that favours confirmed resolutions over unverified suggestions
-- **Search page:** results with status, applicability conditions and links to evidence
+- Gemini embeddings (`GEMINI_EMBEDDING_MODEL`, default `gemini-embedding-2`, 768 dimensions to
+  match the database) with retrieval task formats, dimension checks and normalization
+- Deterministic searchable text per knowledge item; one chunk per short item, section-based
+  splitting for long ones; only changed chunks are re-embedded
+- Automatic indexing after discovery; embedding outages leave chunks pending, retried by
+  `python -m app.scripts.backfill_embeddings` (bounded, idempotent, `--dry-run` / `--force`)
+- Hybrid retrieval: pgvector cosine search + PostgreSQL full-text search (GIN index, migration
+  0002) + exact identifier matching, fused with Reciprocal Rank Fusion
+- `POST /api/search` with filters applied inside the queries, evidence (author, time, source,
+  excerpt) and transparent ranking signals; keyword fallback when embeddings are unavailable
+- Search Knowledge page with example queries, filters, shareable `?q=` URLs and a detail view
+  showing the original supporting messages
 
-**Done when** searching with symptoms worded differently from the original conversation returns
-the right knowledge item, with its evidence.
+**Not done:** the optional Gemini-written explanation of each match (results show only stored
+knowledge and messages); per-user authorization.
 
 ---
 
-## Phase 5: Evidence-backed guided troubleshooting
+## Phase 5: Evidence-backed guided troubleshooting (done)
 
 **Goal:** turn retrieved knowledge into an interactive troubleshooting guide.
 
-**Scope**
+**Delivered**
 
-- Assemble decision trees from related knowledge items
-- **Troubleshoot page:** React Flow decision tree where every step shows its supporting
-  conversations, contributing experts, status and applicability conditions
-- Save an engineer's troubleshooting journey: answers, observations and final resolution
-- **Knowledge Graph page:** relationships between incidents, equipment, conversations and
-  resolutions
+- Guide generation: Phase 4 hybrid retrieval -> Gemini draft (structured output) built only from
+  the retrieved knowledge and messages -> server-side validation of graph and evidence -> stored
+- `insufficient_evidence` response without calling Gemini when nothing relevant is known
+- Derived approval status and support level per step; manual-verification and change-management
+  warnings for anything not expert-approved; conflicting evidence flagged
+- Multiple experts' fixes kept as separate branches (demo: Site 42 vs. Site 17)
+- Migration 0003: troubleshooting_guides, guide_nodes, guide_edges, node_evidence,
+  troubleshooting_sessions, session_steps (additive)
+- Sessions with append-only steps (answers, observations, back/revise as superseded history),
+  completion with outcome summary; outcomes never change knowledge approval
+- Guided Troubleshooting page: problem form, React Flow decision tree with active path, current
+  step with answers, evidence panel, history, recent sessions, reloadable `?session=` URLs
 
-**Done when** an engineer can walk through a tree for a known problem and see the evidence
-behind each step.
+**Not done:** per-user authorization and rate limiting; regenerating guides when knowledge changes.
 
 ---
 

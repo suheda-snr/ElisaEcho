@@ -3,9 +3,9 @@
 This document describes how Elisa Echo automatically discovers operational knowledge in
 engineers' everyday communication, and how the implemented foundation supports it.
 
-> **Status:** Phases 1–2 are implemented: the app foundation, the PostgreSQL schema (section 4),
-> idempotent message ingestion, read-only APIs and synthetic demo conversations. Discovery with
-> Gemini, retrieval and troubleshooting (sections 3.3–3.8) are still planned.
+> **Status:** Phases 1–4 are implemented: the app foundation, the PostgreSQL schema (section 4),
+> automatic discovery with Gemini (sections 3.1–3.5 and 5) and embeddings with hybrid retrieval
+> (sections 3.6–3.7) and evidence-backed guided troubleshooting (section 3.8).
 > See [roadmap.md](roadmap.md).
 
 ## 1. The problem
@@ -117,6 +117,10 @@ then rank by similarity in a single query.
 
 ### 3.7 Retrieve
 
+Implemented in `app/services/retrieval/` (Phase 4): the three signals below are retrieved
+separately inside SQL (filters and source access applied there) and combined with Reciprocal
+Rank Fusion, with exact identifiers weighted double. See the README section "Knowledge search".
+
 When an engineer describes a new problem, retrieval combines three signals:
 
 1. **Semantic vector search**: similar problems described in different words
@@ -126,6 +130,11 @@ When an engineer describes a new problem, retrieval combines three signals:
 Confirmed resolutions rank above unverified suggestions.
 
 ### 3.8 Recommend and guide
+
+Implemented in `app/services/guides/` (Phase 5): retrieval -> Gemini draft from retrieved
+knowledge only -> validation (single start, acyclic, reachable, evidence on every technical
+step, statuses derived from knowledge) -> stored guide; sessions record answers, observations
+and outcomes as append-only steps. See the README section "Guided troubleshooting".
 
 Results are shown as **evidence-backed recommendations**: each step links to the source messages,
 the contributing experts and its status. For more complex problems, related knowledge can be
@@ -186,7 +195,14 @@ can exist before they are embedded. No embeddings are generated in Phase 2.
 Delivering the same message twice updates it instead of creating a duplicate, which also lets edits
 and deletions from the source be synchronized later. Nothing in the ingestion path deletes rows.
 
-## 5. How Phase 3 will consume conversation threads
+## 5. How conversation threads are processed (Phase 3, implemented)
+
+Code: `app/services/discovery/` (analyzer, validation, prompt, engine) and `app/ai/` (Gemini
+client and output schema). Differences from the original plan below: analysis runs in-process
+(asyncio tasks with a per-thread debounce and a concurrency limit) instead of a separate
+worker, and each thread keeps exactly one candidate that is updated in place. Irrelevant
+threads get a `rejected` candidate as an audit record, so they are not re-analyzed unless
+their messages change. The original plan:
 
 Phase 2 leaves every ingested thread with `processing_status = 'pending'`. Phase 3 will:
 
