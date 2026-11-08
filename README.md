@@ -114,10 +114,20 @@ inventory is synthetic.*
    the fix. A guide generated for TRN-118 proposes checking the traffic counters and toggling
    the interface, and each step cites the original messages.
 
+<p align="center">
+  <img src="docs/images/search-trn118.png" alt="Knowledge Explorer search for TRN-118: port up after optical module swap, but zero traffic, returning the TRN-042 fixes with the TX-900 unit class link, confirmed in chat, needs review" width="860"><br>
+  <sub>Searching for TRN-118, a node no conversation mentions, returns the TRN-042 fixes through the shared TX-900 unit class.</sub>
+</p>
+
 **Temporal validity.** A 2025 message says the barrier key for **SITE-PELLO-03** is in a
 lockbox; a 2026 chat says it has moved to the depot. Consolidation marks the 2025 item as
 superseded (`valid_to` 2026-10-28). Search returns the current instruction, and with **Valid
 on** `2025-06-01` it returns the old one.
+
+<p align="center">
+  <img src="docs/images/outdated-knowledge.png" alt="Outdated knowledge item for SITE-PELLO-03: valid from March 12 until October 28, replaced by the updated barrier key location, with the reason the newer case gives" width="720"><br>
+  <sub>The 2025 instruction stays visible but is marked outdated: when it was valid, which item replaced it, and why.</sub>
+</p>
 
 ## How Elisa Echo works
 
