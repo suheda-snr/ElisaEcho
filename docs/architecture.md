@@ -10,7 +10,7 @@ engineers' everyday communication, and how the implemented foundation supports i
 
 ## 1. The problem
 
-Engineers share valuable troubleshooting knowledge in Slack, Microsoft Teams, email and similar
+Engineers share valuable troubleshooting knowledge in Slack, Microsoft Teams and similar
 channels. That knowledge is rarely written down anywhere else, so it gets buried and is lost to the
 next engineer who meets the same problem.
 
@@ -34,14 +34,14 @@ Engineers never have to submit, document or categorize anything.
 | **Evidence first** | Every knowledge item links back to the exact source messages. Recommendations show their evidence. |
 | **Confidence is explicit** | The system separates ordinary chatter, unverified suggestions and confirmed resolutions, and never presents a suggestion as a proven fix. |
 | **Authorized sources only** | Only channels that have been explicitly connected and authorized are ingested. |
-| **Synthetic data first** | The demo uses synthetic conversations. No real Slack, Teams or email accounts are connected until that is explicitly decided. |
+| **Synthetic data first** | The demo uses synthetic conversations. No real Slack or Teams accounts are connected until that is explicitly decided. |
 | **Simple stack** | One FastAPI backend, one React frontend, one PostgreSQL database with pgvector. No queues, brokers or extra services unless clearly needed. |
 
 ## 3. Discovery workflow
 
 ```mermaid
 flowchart LR
-    A[Communication sources<br/>synthetic Slack / Teams / email] --> B[Ingest messages]
+    A[Communication sources<br/>synthetic Slack / Teams] --> B[Ingest messages]
     B --> C[Group into<br/>conversation threads]
     C --> D[Classify messages<br/>ordinary / suggestion / confirmed]
     D --> E[Extract structured knowledge<br/>Gemini]
@@ -64,7 +64,7 @@ downstream.
 ### 3.2 Group into threads
 
 Messages are grouped into conversations, using the source's native thread ID when it has one
-(Slack threads, email `In-Reply-To` headers). Knowledge is extracted per thread, not per message,
+(for example Slack threads). Knowledge is extracted per thread, not per message,
 because a fix and its confirmation are usually in different messages.
 
 ### 3.3 Classify
@@ -143,8 +143,7 @@ a validity period (`valid_from`, `valid_to`, `superseded_by`) and entity links
 derived from the conversation and the network inventory (`equipment.unit_class`,
 `installed_year`, `sites`). This mirrors the reference model's context layer bound to graph
 entities with time validity; relational tables are used instead of a graph database, and the
-Knowledge Network page shows the resulting graph. Sources: Slack, simulated chat/Teams and
-email mailboxes.
+Knowledge Network page shows the resulting graph. Sources: Slack and simulated chat/Teams.
 
 ### 3.7a Learn from reuse (Phase 6C)
 

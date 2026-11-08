@@ -1,990 +1,450 @@
-# Elisa Echo
+<p align="center">
+  <img src="docs/images/logo.png" alt="Elisa Echo" width="340">
+</p>
 
-AI-powered system that **automatically discovers and preserves hidden operational knowledge** from
-the conversations telecom network engineers already have. Built for the Elisa challenge at the
-Since AI Hackathon.
+<p align="center">
+  <b>Evidence-backed operational knowledge, captured from the conversations network engineers already have.</b><br>
+  Prototype for the Elisa challenge, Since AI Hackathon 2026.
+</p>
 
-> **Status: Phases 1–5 are done.** A simulated live chat feed, **automatic knowledge discovery
-> with Gemini**, **hybrid semantic + keyword search** and **evidence-backed guided
-> troubleshooting** (interactive decision trees with saved sessions) work end to end. The
-> knowledge graph and expert review are **not implemented yet**. See the [roadmap](docs/roadmap.md).
+<p align="center">
+  <img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white">
+  <img alt="TypeScript 6" src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white">
+  <img alt="Vite 8" src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white">
+  <img alt="Tailwind CSS 4" src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white">
+  <img alt="FastAPI on Python 3.12" src="https://img.shields.io/badge/FastAPI-Python_3.12-009688?logo=fastapi&logoColor=white">
+  <br>
+  <img alt="Tiger Data" src="https://img.shields.io/badge/Tiger_Data-hosted_PostgreSQL-F5A623?logo=timescale&logoColor=white">
+  <img alt="PostgreSQL with pgvector" src="https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Google Gemini" src="https://img.shields.io/badge/Google_Gemini-AI-8E75B2?logo=googlegemini&logoColor=white">
+  <img alt="Slack Socket Mode" src="https://img.shields.io/badge/Slack-Socket_Mode-4A154B?logo=slack&logoColor=white">
+  <img alt="Docker Compose" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
+</p>
 
-## The problem
+---
 
-Engineers share valuable troubleshooting knowledge in Slack, Microsoft Teams and email. One
-engineer reports a failing service, another remembers that restarting just that service (not
-rebooting the whole device) fixed it last time, and the first confirms it worked. Nobody writes
-it down, so the next engineer with the same symptoms starts from scratch.
+**Contents:** [Overview](#overview) · [Implemented capabilities](#implemented-capabilities) · [Example: knowledge reuse](#example-knowledge-reuse-synthetic-scenario) · [How Elisa Echo works](#how-elisa-echo-works) · [Knowledge intelligence](#knowledge-intelligence-core-technical-principles) · [Technical architecture](#technical-architecture) · [Integrations](#integrations) · [Installation and setup](#installation-and-local-setup) · [Testing and limitations](#testing-and-current-limitations) · [Further documentation](#further-documentation)
 
-## What Elisa Echo does
+---
 
-Elisa Echo finds that knowledge **automatically**. Engineers never have to submit, document or
-categorize anything.
+## Overview
 
-1. Ingest messages from authorized communication channels.
-2. Group messages into conversation threads.
-3. Analyze threads to find operational knowledge, distinguishing **ordinary messages**,
-   **unverified suggestions** and **confirmed resolutions**.
-4. Extract structured knowledge with Google Gemini: symptoms, equipment, steps, outcome,
-   applicability conditions and links to the source messages.
-5. Link knowledge to incidents, equipment and other expert contributions.
-6. Store embeddings in Tiger Data PostgreSQL with pgvector.
-7. When an engineer meets a similar problem, retrieve the earlier solution **with its evidence**,
-   optionally as an interactive troubleshooting decision tree.
+Much of what keeps a network running is never written down. A field engineer swaps an optical
+module, the link comes up, and traffic still does not flow. A colleague answers in chat: "on these
+older units, disable and re-enable the interface; don't reboot." The fix works, the thread
+scrolls away, and the next engineer facing the same symptom starts from scratch. Monitoring
+records that a link failed, not why, and documentation is rarely updated after the fact.
 
-The demo uses **synthetic conversations**. No real Slack, Teams or email accounts are connected.
-Full design: [docs/architecture.md](docs/architecture.md).
+Elisa Echo reads the conversation channels a team already uses. It finds the threads that hold
+operational knowledge and turns them into structured records with three properties:
 
-### Application pages
+- every claim points back to the messages it came from;
+- the record is bound to the network entities it concerns (node, unit class, site, event);
+- the record carries a validity period.
 
-| Route           | Page                                   | Purpose                                                              |
-| --------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| `/`             | Dashboard                              | Discovered knowledge, recent processing activity, system status      |
-| `/discovery`    | Live Discovery                         | Incoming conversations and the knowledge automatically found in them |
-| `/search`       | Search Knowledge                       | Hybrid semantic + keyword search with supporting messages            |
-| `/troubleshoot` | Guided Troubleshooting                 | Interactive evidence-backed decision trees with saved sessions        |
-| `/knowledge`    | Knowledge Base                         | Discovered knowledge with evidence and related knowledge             |
-| `/network`      | Knowledge Network                      | Related incidents grouped automatically: paths, conditions, conflicts |
+Engineers retrieve these records in their own words, follow them as step-by-step troubleshooting
+guides, and report whether they worked. Nobody has to fill in a form.
 
-## Tech stack
+> [!NOTE]
+> **Slack is connected today:** messages from monitored channels are captured live.
+> **Microsoft Teams, Discord and Google Chat are future integrations.** They will feed the same
+> pipeline, but they are not connected yet.
 
-| Layer    | Tools                                                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend | React 19, Vite 8, TypeScript 6 (strict), Tailwind CSS 4, shadcn/ui, React Router 8, TanStack Query 5, Axios, Lucide, React Flow, Recharts |
-| Backend  | Python 3.12, FastAPI, Uvicorn, Pydantic 2, pydantic-settings, SQLAlchemy 2 (async), psycopg 3, Alembic, pgvector, python-dotenv |
-| Database | Tiger Data hosted PostgreSQL with the pgvector extension                                                                         |
-| Testing  | pytest, pytest-asyncio, httpx                                                                                                    |
-| Dev env  | Docker, Docker Compose, Node.js 24 LTS, npm                                                                                      |
+## Implemented capabilities
 
-## Project structure
+| Page | What works |
+| --- | --- |
+| **Live Discovery** | Incoming threads, highlighted evidence messages, the extracted knowledge with entity chips, and retry for failed analyses |
+| **Knowledge Explorer** | Hybrid search with "Valid on" and "Include outdated"; every item with its evidence, links, validity and feedback; groups of related cases with side-by-side comparison and conflicts |
+| **Troubleshooting** | Evidence-backed decision trees (step-by-step or tree view), saved sessions with back-tracking and notes, and "Did it work?" outcome reports |
+| **Integrations** | Slack connection status and channel allowlist, the synthetic inventory, connector activity |
 
-```text
-.
-├── compose.yaml          # Runs frontend + backend for local development
-├── docs/                 # architecture.md (discovery workflow) and roadmap.md (phases)
-├── frontend/             # React + Vite single-page app
-│   ├── src/
-│   │   ├── components/   # layout/ (sidebar, header) and ui/ (shadcn/ui)
-│   │   ├── pages/        # One file per route
-│   │   ├── hooks/        # TanStack Query hooks
-│   │   ├── services/     # api.ts – shared Axios client
-│   │   ├── types/        # Shared TypeScript types
-│   │   └── lib/          # Utilities and navigation config
-│   └── Dockerfile
-└── backend/              # FastAPI service
-    ├── app/
-    │   ├── main.py       # App factory, CORS, routers, database error handling
-    │   ├── api/          # router.py, deps.py + routes/ (one module per resource)
-    │   ├── schemas/      # Pydantic request/response models
-    │   ├── services/     # Business logic and queries, called by routes
-    │   ├── models/       # SQLAlchemy ORM models
-    │   ├── db/           # Async engine/session, declarative base, URL handling
-    │   ├── ai/           # Gemini client and structured-output schema
-    │   ├── slack/        # Slack Socket Mode worker, event normalization, ingestion
-    │   ├── seed/         # Synthetic demo conversations (`python -m app.seed`)
-    │   └── core/         # config.py – typed settings
-    ├── alembic/          # Migrations: 0001 schema, 0002 FTS index, 0003 guides, 0004 integrations
-    ├── tests/            # Unit tests + integration/ (isolated test database)
-    ├── requirements.txt      # Runtime dependencies
-    ├── requirements-dev.txt  # + test tooling (installed in the dev image)
-    └── Dockerfile
-```
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/live-discovery.png" alt="Live Discovery showing the TRN-042 conversation with evidence highlighted and the discovered knowledge"><br><sub>Live Discovery: evidence messages and the extracted knowledge with entity links</sub></td>
+    <td width="50%"><img src="docs/images/knowledge-item.png" alt="Knowledge item with validity, entity links, conditions and attempted actions"><br><sub>Knowledge item: validity, entity links, conditions, what was tried</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/relationships.png" alt="Related cases grouped and compared side by side"><br><sub>Related cases grouped and compared</sub></td>
+    <td width="50%"><img src="docs/images/troubleshooting-tree.png" alt="Troubleshooting decision tree with source messages"><br><sub>Decision tree; each step shows its source messages</sub></td>
+  </tr>
+</table>
 
-## Quick start (Docker – recommended)
+## Example: knowledge reuse (synthetic scenario)
 
-You only need **Git** and **Docker Desktop** (Windows/macOS) or **Docker Engine with the Compose
-plugin** (Linux). You do not need Node.js or Python installed to run the app this way.
+*The TRN-042 conversation reproduces Appendix A of the Elisa challenge brief. The network
+inventory is synthetic.*
 
-1. Install Docker:
-   - **Windows:** install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)
-     with the WSL 2 backend, then start Docker Desktop and wait until it says it is running.
-   - **macOS:** install [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/)
-     and start it.
-   - **Linux:** install [Docker Engine](https://docs.docker.com/engine/install/) and the
-     [Compose plugin](https://docs.docker.com/compose/install/linux/).
-2. Clone the repository and open a terminal in the project root.
-3. (Optional) create local env files. The defaults work without them:
+1. **The conversation.** In a Teams-style chat, a field engineer reports that after an SFP
+   replacement on transmission node **TRN-042** the link is up but no traffic flows. An expert
+   asks whether it is one of the older units ("installed around 2019"). The expert advises
+   disabling and re-enabling the interface instead of rebooting, and the engineer confirms that
+   traffic recovered.
+2. **The record.** The item is stored as `confirmed_in_conversation`. Its evidence is the
+   problem report, the suggestion with its applicability condition, and the confirmation.
+3. **The links.** Because the expert said the advice applies to the older units, the item is
+   linked to:
+   - TRN-042 (`observed_on`);
+   - its site SITE-OULU-07 (`located_at`, from the inventory);
+   - the **TX-900 legacy unit class** (`applies_to`);
+   - the event "SFP replacement" (`triggered_by`).
+4. **The reuse.** A later search for *"TRN-118: port up after optical module swap, but zero
+   traffic"* returns the TRN-042 item, even though TRN-118 appears in no conversation. The
+   identifier retriever finds TRN-118 in the inventory, sees the shared TX-900 class and adds
+   the signal "trn118 (same unit class)". The newer TRN-305 (TX-2000 class) does not inherit
+   the fix. A guide generated for TRN-118 proposes checking the traffic counters and toggling
+   the interface, and each step cites the original messages.
 
-   ```bash
-   # macOS / Linux / Git Bash
-   cp backend/.env.example backend/.env
-   cp frontend/.env.example frontend/.env
-   ```
+**Temporal validity.** A 2025 message says the barrier key for **SITE-PELLO-03** is in a
+lockbox; a 2026 chat says it has moved to the depot. Consolidation marks the 2025 item as
+superseded (`valid_to` 2026-10-28). Search returns the current instruction, and with **Valid
+on** `2025-06-01` it returns the old one.
 
-   ```powershell
-   # Windows PowerShell
-   Copy-Item backend/.env.example backend/.env
-   Copy-Item frontend/.env.example frontend/.env
-   ```
+## How Elisa Echo works
 
-4. Start everything:
+<p align="center">
+  <img src="docs/images/how-it-works.png" alt="How Elisa Echo works: sources, ingestion filter, threads, Gemini classification and extraction, server validation (rejected, incomplete or accepted), link and store, knowledge store, embedding and indexing, hybrid search, guide generation, guide validation and outcome feedback, with related-case grouping and validity updates" width="900">
+</p>
 
-   ```bash
-   docker compose up --build
-   ```
+**Ingestion.** Messages are stored unchanged, with their author, timestamp and permalink. They are
+grouped into threads: a Slack thread or a demo chat conversation. Re-delivered messages are de-duplicated, and edits and deletions re-trigger
+analysis.
 
-5. Open the app:
+**Analysis timing.** A thread is analyzed once it has been quiet for 12 seconds, so a burst of
+messages costs one Gemini call. A content fingerprint skips threads that have not changed. Each
+of the remaining stages is explained below.
 
-   | What               | URL                                |
-   | ------------------ | ---------------------------------- |
-   | Frontend           | http://localhost:5173              |
-   | Backend API        | http://localhost:8000              |
-   | API docs (Swagger) | http://localhost:8000/docs         |
-   | Health check       | http://localhost:8000/api/health   |
+## Knowledge intelligence: core technical principles
 
-Stop with `Ctrl+C`, then remove the containers:
+### Knowledge detection: relevant or not?
+
+Relevance is decided in three steps: a rule-based filter, Gemini's judgement, and a
+deterministic server-side gate. There is no separate classifier model and no keyword list.
+
+**1. Ingestion filter (rules).** Only allowlisted sources are stored. From Slack, the following
+are dropped before any AI call: bot messages (including Elisa Echo's own), system events (joins,
+topic changes), DMs and empty messages (`backend/app/slack/events.py`).
+
+**2. Gemini classification (judgement).** Gemini returns:
+
+- exactly one classification, defined in the system prompt
+  (`backend/app/services/discovery/prompt.py`):
+
+  | Classification | Meaning in the prompt |
+  | --- | --- |
+  | `irrelevant` | No operational content (greetings, lunch, small talk) |
+  | `incident_without_resolution` | A technical problem is discussed, but no fix is proposed |
+  | `unverified_suggestion` | A fix is proposed, but nobody confirms it worked |
+  | `confirmed_resolution` | A message explicitly reports the fix worked |
+  | `workaround_or_exception` | Know-how such as "don't do X in situation Y", even without a full fix |
+  | `contradictory_or_incomplete` | Conflicting or too unclear to rely on |
+  | `access_information` | How to physically reach a site (keys, gate codes, contacts) |
+
+- an `is_valuable_knowledge` flag, true "only if another engineer could reuse this to
+  troubleshoot later";
+- a short rationale and a confidence score, which are stored for auditing;
+- the extracted content: symptoms, attempted actions with their outcomes, the resolution,
+  applicability conditions and a scope (`this_equipment_only` or `same_equipment_class`).
+
+**How Gemini can make this decision.** Step 2 is *zero-shot classification* by a large language
+model. Gemini was pre-trained on large amounts of text, so it already models language
+understanding: what a symptom, a proposed fix, a confirmation or a greeting looks like, and how
+a reply relates to an earlier question. Elisa Echo does not train or fine-tune a model. It turns
+that general ability into a narrow task:
+
+- **Definitions instead of training data.** The system prompt defines each category and the
+  rules (for example "`confirmed_resolution` only if a message explicitly says the fix worked").
+- **Whole-thread context.** All messages arrive together and in order, as untrusted JSON data,
+  so a late "that worked" changes how the earlier suggestion is read.
+- **Constrained output.** The Pydantic schema is sent as Gemini's `response_schema` with
+  `response_mime_type="application/json"` (`backend/app/ai/gemini.py`). The model can only
+  answer with one of the 7 allowed labels and the defined fields. The reply is validated against
+  the same schema again.
+- **Low randomness.** Temperature 0.1 makes repeated analyses of the same thread consistent.
+
+The model's judgement is not trusted on its own: step 3 decides what is stored. Its accuracy
+has not been measured on a labelled dataset.
+
+**3. Server gate (deterministic).** `validate_analysis()` in
+`backend/app/services/discovery/validation.py` decides the outcome:
+
+| Outcome | Condition | UI label |
+| --- | --- | --- |
+| **Rejected** | `is_valuable_knowledge` is false, or the classification is `irrelevant` | Not relevant |
+| **Incomplete** | Valuable, but the classification is `incident_without_resolution` or `contradictory_or_incomplete`, or no valid evidence or content remains | No fix yet (kept as a candidate, not a knowledge item) |
+| **Accepted** | One of the four knowledge classifications (suggestion, confirmed, workaround, access) **and** at least one valid evidence message **and** a resolution, attempted action or condition | Knowledge |
+
+The full analysis is kept for every thread, including rejected ones: the classification,
+rationale, model name and validation flags. Each decision can therefore be inspected later.
+
+### Evidence validation
+
+Messages are sent to Gemini with per-request labels (M1, M2, …). Every cited message carries a
+role:
+
+- `problem_report`
+- `attempted_fix`
+- `suggested_solution`
+- `confirmed_resolution`
+- `applicability_condition`
+
+The server maps the labels back to stored message IDs and discards any reference outside the
+thread. Equipment, site and incident identifiers must appear literally in the conversation.
+
+**How "it worked" is recognised.** A resolution stays `confirmed_in_conversation` only if at
+least one valid cited message has the `confirmed_resolution` role. Otherwise it is downgraded to
+`suggested`, successful outcomes become `unknown`, and "confirmation that the fix worked" is
+recorded as missing. Even then, a confirmation means that one engineer reported success, not
+that an expert approved it.
+
+### Entity linking
+
+Binding is deterministic and happens after validation (`backend/app/services/entities.py`):
+
+- A verified equipment ID such as `TRN-042` is linked as `observed_on`.
+- Its site comes from the inventory (`located_at`).
+- Its unit class (`TX-900`) is linked as `applies_to` **only** when the extracted scope says
+  the knowledge applies to that kind of unit. A device-specific fix stays bound to one device.
+- Sites mentioned in access knowledge are linked as `access_to`.
+- Operational events (for example "SFP replacement") are linked only if every word appears in
+  the thread.
+
+Each link records whether it came from the conversation or the inventory.
+
+### Embeddings and hybrid retrieval
+
+The embedded text is a deterministic summary of the item: title, problem, symptoms, equipment,
+root cause, resolution with its confirmation status, and conditions. It contains no author names
+and no raw chat.
+
+`gemini-embedding-2` produces 768-dimension vectors. They are L2-normalized and stored in
+pgvector with an HNSW cosine index, so similar meaning gives a high cosine similarity even with
+different wording. Semantic matches must reach 0.65 similarity and lie within 0.06 of the best
+match.
+
+Two more retrievers run alongside semantic search: PostgreSQL full-text search, and exact
+identifier matching, which includes the shared unit class. The three rankings are combined with
+Reciprocal Rank Fusion (k = 60, identifier weight 2), because embeddings handle paraphrase well
+but equipment codes poorly.
+
+### Knowledge relationships and validity
+
+**Candidate selection.** After indexing, each item is compared with at most six candidates.
+Candidates are items with embedding similarity of at least 0.6, or items that share an equipment,
+node or site identifier. Items are never compared all-pairs.
+
+**Pair comparison.** Gemini compares each pair with the same constrained-output technique as
+detection. It returns one of these relationships, with the shared symptoms, the condition
+differences and cited messages:
+
+- `same_problem`
+- `supporting_evidence`
+- `same_problem_different_conditions`
+- `different_outcome`
+- `potentially_conflicting`
+- `related_symptoms`
+- `unrelated`
+
+**Validation.** A grouping relationship without evidence on both sides is downgraded to
+`related_symptoms`. An item joins a group only if it is strongly related to every member, so
+grouping never chains. Originals are never merged.
+
+**Replacement and validity.** Gemini may say that one case replaces the other. The server
+accepts this only if the cases are related, both cite evidence, and the replacing case's
+evidence is newer. The older item then gets `valid_to` and `superseded_by`; it is not deleted.
+Search returns currently valid knowledge by default, and can include outdated items or answer for
+a past date (`as_of`).
+
+### Guided troubleshooting
+
+**Input.** A problem description is run through hybrid search. The top four supported
+knowledge items are kept, together with up to three related group members, their relationships,
+inventory facts and earlier outcome reports. These, with their evidence messages labelled K#
+and E#, are the only material Gemini sees. If nothing relevant is found, the result is
+`insufficient_evidence` and Gemini is not called.
+
+**Drafting.** Gemini drafts a decision tree under a schema. Nodes can only be `start`,
+`question`, `diagnostic`, `recommendation`, `resolution` or `escalation`.
+
+**Validation.** The server checks that the draft:
+
+- has exactly one start step;
+- has no cycles and no dangling edges;
+- has every step reachable from the start;
+- has unique answers per step;
+- cites valid evidence on every action step.
+
+An invalid draft gets one retry with the specific problems listed. If it is still invalid,
+nothing is saved.
+
+**Trust labels.** Each step's support level and approval status are derived from the knowledge
+it cites, never generated by the model.
+
+### Outcome feedback
+
+After a recommendation, the engineer answers **Did it work?**: attempted or not, and resolved,
+not resolved, partially resolved or unknown. Equipment and firmware are optional. Each report
+is stored as a separate, `self_reported` kind of evidence, one per session, step and item; edits
+require a one-time token.
+
+Reports are aggregated per knowledge item, firmware and equipment. A success rate is shown only
+from 5 attempts. The aggregates are included in new guide prompts, so a guide can ask for the
+firmware or warn where an action was reported as failing. Feedback never changes a knowledge
+item's resolution or approval status.
+
+### Failure handling
+
+- **Analysis.** Gemini errors are retried a bounded number of times, with backoff. A thread
+  that still fails is marked `failed`, nothing is guessed, and **Retry analysis** appears. A
+  daily-quota error pauses all Gemini calls until the quota resets.
+- **Search.** If embeddings are unavailable, search continues with keyword and identifier
+  matching. The response and the UI say that semantic search did not run.
+- **Indexing and grouping.** An embedding or comparison failure leaves the knowledge saved. The
+  item is marked for retry.
+- **Guides.** No evidence means no Gemini call. An invalid or failed draft is not stored.
+
+## Technical architecture
+
+| Component | Technology | Responsibility in Elisa Echo |
+| --- | --- | --- |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, React Flow | Live Discovery, Knowledge Explorer, decision-tree rendering. Calls only relative `/api` URLs through the Vite proxy |
+| API and pipeline | FastAPI (Python 3.12), SQLAlchemy 2 async, Pydantic | REST API, in-process debounced analysis queue, validation, entity binding, guide sessions |
+| AI extraction | Google Gemini (`gemini-3.1-flash-lite` configured) with structured output | Thread classification and extraction, pair comparison, group summaries, decision-tree drafts |
+| Embeddings | `gemini-embedding-2`, 768 dimensions | Document and query vectors for semantic search and candidate selection |
+| Relational storage | PostgreSQL (Tiger Data hosted), Alembic migrations `0001`–`0008` | Messages, knowledge, evidence, entity links, relationships, guides, sessions, feedback |
+| Vector retrieval | pgvector (HNSW, cosine) + PostgreSQL full-text (GIN) | Semantic and keyword retrievers inside the same SQL queries as the source filters |
+| Integration worker | `slack-sdk` Socket Mode (separate `slack-worker` service) | Live Slack capture from allowlisted public channels |
+| Development infrastructure | Docker Compose, pytest, ESLint, TypeScript strict | Local three-service stack, backend tests against an isolated pgvector database |
+
+## Integrations
+
+| Source | Status | Details |
+| --- | --- | --- |
+| Slack | **Live** | Socket Mode worker. Read-only scopes (`channels:history`, `channels:read`, `users:read`). Public channels on an explicit allowlist. Threads, edits and deletions are synchronized |
+| Teams-style demo conversations | **Synthetic** | Demo feed (`/api/simulation/start`): TRN-042, SITE-PELLO-03, Site 17/42/58, BGP, OLT and an irrelevant lunch thread |
+| Network inventory | **Synthetic** | 6 sites and 6 nodes, including TRN-042/118 (TX-900) and TRN-305 (TX-2000) |
+| Microsoft Teams, Discord, Google Chat | **Future** | Planned to feed the same pipeline. Shown on the Integrations page as previews ("not connected"); no connector code exists yet |
+
+## Installation and local setup
+
+**Requirements:**
+
+- Git and Docker Desktop (or Docker Engine with the Compose plugin);
+- a [Gemini API key](https://aistudio.google.com/apikey);
+- a PostgreSQL database with pgvector ([Tiger Data](https://console.cloud.timescale.com/) or
+  the local container below).
+
+**1. Clone and configure.**
 
 ```bash
-docker compose down
+git clone <repository-url> ElisaEcho && cd ElisaEcho
+cp backend/.env.example backend/.env      # PowerShell: Copy-Item backend/.env.example backend/.env
 ```
 
-Useful commands:
-
-```bash
-docker compose up --build -d     # start in the background
-docker compose logs -f backend   # follow logs of one service
-docker compose down -v           # stop AND delete the node_modules volume (see below)
-```
-
-### Hot reload
-
-Source folders are mounted into the containers, so edits on your machine apply immediately:
-
-- **Frontend:** Vite hot module replacement updates the browser without a full reload.
-- **Backend:** Uvicorn restarts automatically when a `.py` file changes.
-
-File-change events from Windows and macOS hosts do not always reach containers, so file
-**polling is on by default**. On Linux you can turn it off to save CPU:
-
-```bash
-DOCKER_FILE_POLLING=false docker compose up
-```
-
-### When dependencies change
-
-- **Backend (`requirements.txt`):** run `docker compose up --build`.
-- **Frontend (`package.json` / `package-lock.json`):** the container keeps `node_modules` in a
-  named Docker volume. Recreate it so the new packages are installed:
-
-  ```bash
-  docker compose down -v
-  docker compose up --build
-  ```
-
-## How the frontend talks to the backend
-
-The browser always calls **relative** URLs such as `/api/health`. The Vite dev server proxies
-every `/api/*` request to the backend:
-
-- Inside Docker the proxy target is `http://backend:8000` (set via `API_PROXY_TARGET` in
-  `compose.yaml`). `backend` is a Docker network name, which your browser cannot resolve. That
-  is why browser code never uses it directly.
-- Running Vite outside Docker, the proxy defaults to `http://localhost:8000`.
-
-The Axios client lives in `frontend/src/services/api.ts`; its base URL comes from
-`VITE_API_BASE_URL` (default `/api`).
-
-## Database (Tiger Data PostgreSQL + pgvector)
-
-The backend uses a **hosted Tiger Data PostgreSQL** service. There is no database container in
-`compose.yaml`. Schema overview: [docs/architecture.md](docs/architecture.md#4-database-schema).
-
-### 1. Connect to Tiger Data
-
-1. In the [Tiger Data console](https://console.cloud.timescale.com/), open your service and copy
-   its connection string from **Connect**. It looks like
-   `postgres://tsdbadmin:PASSWORD@HOST:PORT/tsdb?sslmode=require`.
-2. Create `backend/.env` from the example (see Quick start) and set:
-
-   ```env
-   DATABASE_URL=postgres://tsdbadmin:PASSWORD@HOST:PORT/tsdb?sslmode=require
-   ```
-
-   `postgres://` and `postgresql://` URLs are converted to the async psycopg 3 driver
-   automatically. Keep `sslmode=require`.
-3. Restart the backend so it picks up the file: `docker compose up -d --force-recreate backend`.
-
-The URL is read only by the backend. It is never logged, never returned by the API and must
-never go into `frontend/.env`.
-
-### 2. Run migrations
-
-Migrations are **not** run automatically on startup. Apply them explicitly:
-
-```bash
-docker compose exec backend alembic upgrade head     # create / update the schema
-docker compose exec backend alembic current          # show the applied revision
-docker compose exec backend alembic history          # list migrations
-```
-
-The initial migration runs `CREATE EXTENSION IF NOT EXISTS vector` and creates all tables,
-constraints and indexes. It never drops existing tables.
-
-After changing models, create a new migration and review it before committing:
-
-```bash
-docker compose exec backend alembic revision --autogenerate -m "describe the change"
-```
-
-### 3. Load the synthetic demo conversations
-
-```bash
-docker compose exec backend python -m app.seed
-```
-
-- Loads 5 **synthetic** conversations (20 messages) into a "Synthetic NOC chat (demo)" source:
-  a confirmed fix (Site 42), irrelevant chatter, an unresolved problem, a thread with several
-  competing suggestions, and a second engineer's different fix for similar drops (Site 17).
-- Stores **messages only**. No knowledge is pre-extracted; the discovery pipeline finds it.
-- **Idempotent and additive:** safe to run repeatedly, never deletes anything, only touches its
-  own synthetic rows.
-- Refuses to run unless `ENVIRONMENT` is `development` or `test`.
-
-### 4. Verify
-
-```bash
-curl http://localhost:8000/api/health/db
-# {"status":"ok","database":"connected","pgvector":true,"detail":null}
-```
-
-`/api/health` keeps working when the database is down; `/api/health/db` then returns
-`503` with `database` set to `not_configured`, `misconfigured` or `unreachable`. Then browse
-the data at http://localhost:8000/docs or:
-
-```bash
-curl "http://localhost:8000/api/threads?limit=10"
-```
-
-### API endpoints
-
-| Method | Path                          | Description                                           |
-| ------ | ----------------------------- | ----------------------------------------------------- |
-| GET    | `/api/health`                 | API is up (no database access)                        |
-| GET    | `/api/health/db`              | `SELECT 1` against PostgreSQL + pgvector check        |
-| GET    | `/api/sources`                | List communication sources                            |
-| POST   | `/api/sources`                | Register a source (**development/test only**)         |
-| GET    | `/api/threads`                | List threads (`source_id`, `processing_status` filters) |
-| GET    | `/api/threads/{id}`           | Thread with its source and message count              |
-| GET    | `/api/threads/{id}/messages`  | Messages in original order                            |
-| GET    | `/api/knowledge`              | List knowledge items (`resolution_status`, `approval_status` filters) |
-| GET    | `/api/knowledge/{id}`         | Knowledge item with evidence messages, equipment, incidents and discovery details |
-| GET    | `/api/knowledge/{id}/related` | AI-assessed relationships of an item and its knowledge group |
-| GET    | `/api/knowledge-groups`, `/{id}`, `/{id}/relationships` | Groups of related cases: summary, cases, pairwise comparisons |
-| POST   | `/api/integrations/email/import`, `/import-samples` | Import emails into a mailbox source (**development only**) |
-| GET    | `/api/integrations/email/mailboxes` | Mailboxes used as knowledge sources |
-| GET    | `/api/inventory` | Synthetic network inventory (sites, nodes, unit classes) with knowledge counts |
-| POST   | `/api/troubleshooting/feedback` | Report whether a recommendation was attempted and its outcome |
-| PATCH  | `/api/troubleshooting/feedback/{id}` | Correct own feedback (`X-Feedback-Token` from the submission) |
-| GET    | `/api/troubleshooting/sessions/{id}/feedback` | Feedback given in a session |
-| GET    | `/api/knowledge/{id}/feedback`, `/feedback/summary` | Feedback records / aggregated outcomes for a knowledge item |
-| POST   | `/api/guides/generate`        | Evidence-backed troubleshooting guide for a problem (or `insufficient_evidence`) |
-| GET    | `/api/guides`, `/api/guides/{id}` | Recent guides / one guide with steps, evidence and sources |
-| POST   | `/api/troubleshooting/sessions` | Start a session for a guide                         |
-| GET    | `/api/troubleshooting/sessions`, `/{id}` | Recent sessions / one session with path and history |
-| POST   | `/api/troubleshooting/sessions/{id}/steps` | Answer, add an observation, or go back      |
-| POST   | `/api/troubleshooting/sessions/{id}/complete` | Record the outcome (resolved / unresolved) |
-| POST   | `/api/search`                 | Hybrid knowledge search with evidence and ranking signals |
-| GET    | `/api/integrations/slack/status`, `/health`, `/channels`, `/events` | Slack connector status, live token check, channels, activity |
-| POST   | `/api/integrations/slack/channels` | Enable/disable monitoring of a Slack channel (**development only**) |
-| GET    | `/api/discovery/status`       | Simulation progress, analysis queue, Gemini model, metrics |
-| GET    | `/api/discovery/events`       | Pipeline event log (`after` = last seen event id)     |
-| GET    | `/api/discovery/threads`      | Threads with their discovery result                   |
-| POST   | `/api/simulation/start`, `/stop`, `/reset` | Control the simulated feed (**development/test only**) |
-| POST   | `/api/threads/{id}/analyze`   | Analyze one thread now; `?force=true` skips the unchanged check (**development/test only**) |
-
-List endpoints are paginated with `limit` (1–100, default 50) and `offset`, and return
-`{items, total, limit, offset}`. There is deliberately **no public endpoint that accepts
-messages**: ingestion happens inside the backend (seed script and the simulated feed).
-
-## Live knowledge discovery (Gemini)
-
-The core feature: messages arrive from a (simulated) chat channel, are grouped into conversation
-threads, and each thread is analyzed by Google Gemini automatically. Nobody submits knowledge by
-hand. The "Start simulation" button only controls the demo feed.
-
-```text
-incoming message -> thread (idempotent upsert) -> debounce -> Gemini structured analysis
-  -> server-side evidence validation -> knowledge candidate / item / evidence in PostgreSQL
-```
-
-### 1. Configure Gemini
-
-Add a key from [Google AI Studio](https://aistudio.google.com/apikey) to `backend/.env`, then
-recreate the backend:
+Set these values in `backend/.env`. The file is git-ignored. Never put secrets in
+`frontend/.env`, because `VITE_` variables reach the browser.
 
 ```env
-GEMINI_API_KEY=your-key
-GEMINI_MODEL=gemini-3.8-flash
+ENVIRONMENT=development
+DATABASE_URL=postgres://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.1-flash-lite
 ```
+
+All optional settings (Slack, search thresholds, pipeline tuning) are documented in
+[`backend/.env.example`](backend/.env.example).
+
+<details>
+<summary>No Tiger Data account: use a local pgvector container</summary>
+
+Run this after step 2, so that the `elisa-echo_default` network exists:
 
 ```bash
-docker compose up -d --force-recreate backend
-curl http://localhost:8000/api/discovery/status    # "gemini_configured": true
+docker run -d --name elisa-echo-db --network elisa-echo_default \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=elisa_echo \
+  -v elisa-echo-db-data:/var/lib/postgresql/data pgvector/pgvector:0.8.7-pg17-trixie
 ```
 
-The key stays on the backend; it is never logged or returned by the API.
+Set `DATABASE_URL=postgresql+psycopg://postgres:postgres@elisa-echo-db:5432/elisa_echo`, then run
+`docker compose up -d --force-recreate backend slack-worker`.
+</details>
 
-### 2. Run the demo
-
-1. Open http://localhost:5173/discovery (**Live Discovery**).
-2. Click **Reset demo** for a clean start. It deletes only the synthetic demo conversations and
-   what was discovered from them.
-3. Click **Start simulation**. Messages from four synthetic conversations arrive one by one
-   (every 2 s). About 12 s after a conversation goes quiet, Gemini analyzes the whole thread,
-   so a demo run costs about 5 Gemini requests, not one per message.
-4. Watch the right-hand panel: the lunch chatter is ignored; the Site 42 thread first appears as
-   an *unverified suggestion* and becomes *confirmed in conversation* once "That worked" arrives.
-   Every fix shows the messages that support it.
-5. Click **Start simulation** again: all messages are recognized as duplicates and unchanged
-   threads are not sent to Gemini again.
-
-The same from the command line:
+**2. Start the services and create the schema.**
 
 ```bash
-curl -X POST http://localhost:8000/api/simulation/reset
-curl -X POST http://localhost:8000/api/simulation/start
-curl http://localhost:8000/api/discovery/status          # progress + metrics
-curl http://localhost:8000/api/discovery/events          # pipeline log
-curl -X POST http://localhost:8000/api/simulation/stop
-curl -X POST "http://localhost:8000/api/threads/THREAD_ID/analyze?force=true"   # re-run one thread
+docker compose up --build -d                       # backend, slack-worker, frontend
+docker compose exec backend alembic upgrade head   # enables the pgvector extension and creates the schema; re-run after pulling
+curl http://localhost:8000/api/health/db           # {"status":"ok","database":"connected","pgvector":true,...}
 ```
 
-### 3. Check what was saved
+**3. Load the synthetic demo data.** This streams the synthetic demo conversations through the
+real pipeline, and takes a few minutes and about a dozen Gemini calls:
 
 ```bash
-curl http://localhost:8000/api/discovery/threads   # each thread with its classification
-curl http://localhost:8000/api/knowledge           # stored knowledge items
-curl http://localhost:8000/api/knowledge/ITEM_ID   # evidence messages, missing info, validation
+curl -X POST http://localhost:8000/api/simulation/start   # Windows PowerShell: use curl.exe
 ```
 
-The Dashboard shows the same numbers: messages processed, threads analyzed, candidates,
-confirmed resolutions and failures.
+**4. Open the app.**
 
-### What the pipeline guarantees
+| What | URL |
+| --- | --- |
+| Application | <http://localhost:5173> |
+| API and Swagger UI | <http://localhost:8000/docs> |
+| Pipeline status | <http://localhost:8000/api/discovery/status> |
 
-- **Classification:** irrelevant / incident without resolution / unverified suggestion /
-  confirmed resolution / workaround or exception / contradictory or incomplete.
-- **Evidence validation:** Gemini references messages by per-request labels (M1, M2…). The server
-  maps them back and drops any reference outside the analyzed thread. Equipment IDs and incident
-  numbers must appear literally in the conversation.
-- **No invented success:** "confirmed in conversation" requires a message that reports the fix
-  worked. Otherwise it is stored as a suggestion and the missing confirmation is recorded.
-- **Never auto-approved:** `approval_status` stays `unreviewed`. Model confidence is shown as
-  confidence, not verification.
-- **Idempotent:** one candidate and item per thread, updated in place as the conversation
-  evolves. A fingerprint skips unchanged threads; message ingestion is an upsert.
-- **Bounded cost and retries:** per-thread debounce, at most 2 concurrent analyses, at most 3
-  Gemini attempts with exponential backoff. Gemini's own `retryDelay` is honoured when it is short;
-  a long one (e.g. the free tier's **daily** quota) fails immediately and pauses all Gemini calls
-  until the quota resets. Affected threads are marked `failed` instead of guessed, and can be
-  re-run from the UI ("Retry analysis") once the quota is back.
-- **Prompt-injection resistant:** messages are passed as data, the instructions say to ignore
-  instructions inside them, and validation limits what any output can change.
+After editing `backend/.env`, run `docker compose up -d --force-recreate backend slack-worker`
+(a plain restart does not reload it). To connect Slack, follow [docs/slack-setup.md](docs/slack-setup.md). The app can be created from
+[docs/slack-app-manifest.yaml](docs/slack-app-manifest.yaml).
 
-**Free-tier quota tip:** quotas are per model. If `gemini-3.8-flash` is exhausted for the day,
-set `GEMINI_MODEL=gemini-3.1-flash-lite` in `backend/.env` and recreate the backend.
+## Testing and current limitations
 
-### Limitations (hackathon MVP)
+The backend has unit tests and integration tests (`backend/tests/`). They cover:
 
-- The feed, debounce timers and event log run **inside the API process**. They reset when the
-  backend restarts or hot-reloads, and only one backend process is supported. Production would
-  use a durable queue and worker (for example a jobs table polled with `SKIP LOCKED`).
-  Restarting the simulation resumes safely because delivered messages are skipped as duplicates.
-- Only the synthetic demo source is ingested. There are no real Slack or Teams connectors.
-- Edited or deleted messages trigger re-analysis. Knowledge that is no longer supported keeps its
-  record but loses its evidence and certainty (`resolution_status = unknown`); it is not deleted.
-- Equipment rows created from conversations are kept on demo reset (shared reference data).
+- discovery and validation rules;
+- search, including the fallback when embeddings are unavailable;
+- entity binding and validity;
+- consolidation (including non-transitive grouping);
+- guide graph validation;
+- sessions and feedback;
+- Slack behaviour, including that tokens are never returned;
+- seed safety.
 
-## Knowledge search (embeddings + hybrid retrieval)
-
-Engineers describe a problem in their own words on the **Search Knowledge** page
-(http://localhost:5173/search) and get the previously discovered fix together with the original
-messages that support it.
-
-```text
-knowledge item -> searchable text -> Gemini embedding (768 dims) -> knowledge_chunks (pgvector)
-query -> semantic (cosine) + full-text (PostgreSQL) + exact identifiers -> Reciprocal Rank Fusion
-```
-
-### How it works
-
-- **Embeddings:** `GEMINI_EMBEDDING_MODEL` (default `gemini-embedding-2`) at **768 dimensions**,
-  the size of the `knowledge_chunks.embedding` column. Documents and queries use the model's
-  retrieval task format (text prefixes for gemini-embedding-2, `task_type` for
-  gemini-embedding-001); vectors are L2-normalized and their dimension is checked.
-- **Searchable text:** title, problem, symptoms, equipment/sites, incidents, root cause,
-  resolution (with its confirmation status), attempted actions and applicability conditions. No
-  author names or raw chat. Evidence stays separate and is returned with each result. One chunk
-  per item for short items; long items are split by section.
-- **Automatic indexing:** when discovery creates or updates a knowledge item, its chunk text is
-  rewritten and only changed chunks are re-embedded. If the embedding API fails, the knowledge is
-  still saved and the chunk stays *pending* (keyword search already works on it).
-- **Hybrid ranking:** three separate ranked lists, combined with Reciprocal Rank Fusion
-  (`score = Σ weight / (60 + rank)`). Raw cosine and full-text scores are never compared
-  directly. Exact identifiers (equipment, site, incident numbers, codes in the text, e.g.
-  `PE-03`, `S42-RTR-01`, `INC-1042`, `Site 42`) get double weight.
-- **Calibrated semantic cut-off:** semantic matches must reach `SEARCH_MIN_SIMILARITY` (0.65)
-  and be within `SEARCH_SIMILARITY_MARGIN` (0.06) of the best match. These values were measured
-  on the demo data with gemini-embedding-2 (unrelated queries ≤ 0.62, relevant ≥ 0.68); re-check
-  them after changing the model.
-- **Honest status:** each response says whether semantic search actually ran (`used`,
-  `no_embeddings`, `unavailable`, `not_configured`). If the embedding API is down, keyword and
-  identifier search still return results and no similarity is shown.
-
-### Embedding backfill
-
-Knowledge stored before Phase 4 (or chunks left pending by an API outage) is embedded with:
+Gemini and Slack are replaced by fakes, so the tests verify pipeline logic and safeguards,
+not model accuracy. The last full run, against an isolated pgvector database on 7 Nov 2026,
+passed 343 tests. The frontend is checked with strict TypeScript and ESLint; there are no
+frontend or end-to-end tests.
 
 ```bash
-docker compose exec backend python -m app.scripts.backfill_embeddings --dry-run   # report only
-docker compose exec backend python -m app.scripts.backfill_embeddings             # up to 100 chunks
-docker compose exec backend python -m app.scripts.backfill_embeddings --limit 20
-docker compose exec backend python -m app.scripts.backfill_embeddings --force     # after changing the model
+docker compose exec backend pytest                 # unit tests; integration tests are skipped without a test DB
+docker compose exec -e TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@<test-db-host>:5432/elisa_echo_test backend pytest
+docker compose exec frontend npm run typecheck
+docker compose exec frontend npm run lint
 ```
 
-It skips unchanged chunks, stops cleanly at the first API or database error (re-run to
-continue) and never deletes knowledge or messages.
-
-### Try it
-
-1. Run the demo on **Live Discovery** (Reset demo, then Start simulation) and wait until the
-   activity log shows "Embedded for semantic search".
-2. Open **Search Knowledge** and click an example, or type the problem in other words, e.g.
-   *customers lose their internet sessions every half hour*. The Site 42 fix appears first,
-   marked *Confirmed in conversation* and *Not expert-reviewed*, with its four original messages.
-3. Search an identifier such as `PE-03` or `S42-RTR-01`.
-4. Searches are shareable: the query is kept in the URL (`/search?q=...`).
-
-From the command line:
-
-```bash
-curl -X POST http://localhost:8000/api/search -H "Content-Type: application/json" \
-  -d '{"query": "connection keeps dropping after router restart", "limit": 5}'
-```
-
-Optional filters: `{"filters": {"equipment_identifier": "PE-03", "incident_number": "INC-1042",
-"approval_status": "approved", "resolution_status": "confirmed_in_conversation"}}`.
-
-### Security notes and limitations
-
-- Filters and the source `enabled` flag are applied **inside** the retrieval queries. There is
-  no per-user authorization yet: every caller can search everything from enabled sources.
-  Production needs authentication and per-source access control before real conversations are
-  ingested.
-- Retrieved messages are untrusted data and are only displayed. Nothing in them is executed or
-  interpreted as instructions.
-- No AI-generated answer is added on top of the results (the optional grounded explanation was
-  not implemented); every statement shown comes from stored knowledge and its source messages.
-- Changing `GEMINI_EMBEDDING_MODEL` requires `backfill_embeddings --force` (the model used for
-  a stored vector is not recorded per row).
-
-## Guided troubleshooting (evidence-backed decision trees)
-
-On **Guided Troubleshooting** (http://localhost:5173/troubleshoot) an engineer describes a
-current problem. Elisa Echo retrieves matching knowledge (Phase 4 hybrid search), Gemini drafts a
-decision tree **only from that knowledge and its source messages**, the server validates it, and
-the engineer walks through it while every answer and observation is saved.
-
-```text
-problem -> hybrid search -> top knowledge + evidence (labelled K#/E#) -> Gemini draft
-  -> validation (graph + evidence) -> guide in PostgreSQL -> session (answers, observations, outcome)
-```
-
-### What the guide guarantees
-
-- **Grounded:** only knowledge and messages returned by retrieval are sent to Gemini, as untrusted
-  data. Every diagnostic, recommendation and resolution step must cite at least one valid source
-  message; unknown references are dropped and listed in `validation_notes`.
-- **Insufficient evidence:** if no relevant knowledge with evidence is found, Gemini is not called
-  and the guide has `status: insufficient_evidence` with no steps. Gemini may also decline.
-- **Valid graph:** one start step, acyclic, everything reachable, no dangling or self edges, unique
-  answers per step, resolution/escalation steps are end points. An invalid draft gets one retry
-  with the specific problems; if it is still invalid nothing is saved (HTTP 502).
-- **Status is derived, not generated:** each step's approval status and support level
-  (`approved`, `confirmed_in_conversation`, `suggested`, `conflicting`) come from the knowledge
-  items it cites. Steps not backed by approved knowledge require manual verification and show a
-  change-management warning. Navigation steps (start, question, escalation) get no support label.
-- **Multiple experts:** different fixes for similar problems stay separate branches with their
-  own sources and conditions; disagreements are flagged as conflicts.
-- **Decision support only:** nothing is executed. Session outcomes are the engineer's report and
-  never change knowledge approval.
-
-### Try it
-
-1. Make sure discovery has run (Live Discovery: Reset demo, then Start simulation). The demo now
-   contains two engineers' fixes for similar drops: Site 42 (restart the DHCP relay service) and
-   Site 17 (relay restart did not help; DHCP lease time was misconfigured).
-2. Open **Guided Troubleshooting** and click the example *"Customers keep losing their connection
-   every half hour, rebooting the router did not help"*, then **Generate guide** (15–60 s).
-3. The tree shows separate Site 42 and Site 17 branches, a conflict note and an escalation path.
-   Click any step to see its source messages, approval status and applicability.
-4. Answer the current step, record an observation, use **Back / revise** (the earlier answer stays
-   in the history as superseded), then complete the session as resolved or not resolved.
-5. Reload the page: the session (`?session=<id>`) restores the path and full history. Recent
-   sessions are listed at the bottom.
-6. A problem nothing covers (e.g. a printer paper jam) returns *Not enough evidence* without steps.
-
-From the command line:
-
-```bash
-curl -X POST http://localhost:8000/api/guides/generate -H "Content-Type: application/json" \
-  -d '{"problem": "Customers drop every 30 minutes, router reboot did not help", "equipment_identifier": "S17-RTR-02"}'
-curl -X POST http://localhost:8000/api/troubleshooting/sessions -H "Content-Type: application/json" \
-  -d '{"guide_id": "GUIDE_ID"}'
-curl -X POST http://localhost:8000/api/troubleshooting/sessions/SESSION_ID/steps -H "Content-Type: application/json" \
-  -d '{"type": "answer", "answer_label": "Yes"}'
-curl -X POST http://localhost:8000/api/troubleshooting/sessions/SESSION_ID/complete -H "Content-Type: application/json" \
-  -d '{"outcome": "resolved", "summary": "Lease time reset; stable"}'
-```
-
-### Limitations
-
-- Guide generation calls Gemini once (twice if the first draft is invalid) and is not
-  rate-limited per user; there is no authentication yet.
-- Guides are snapshots: if the underlying knowledge changes later, existing guides are not
-  regenerated (generate a new one).
-- The tree layout is a simple deterministic layering; very wide guides need zooming.
-- Gemini capacity varies: when a model is overloaded (HTTP 503) generation fails cleanly and can be
-  retried; `GEMINI_MODEL` can be switched to another available model.
-
-## Slack integration (real conversations)
-
-Elisa Echo can discover knowledge from **real Slack conversations** in channels an administrator
-has authorized. Slack messages go through exactly the same pipeline as the simulated feed:
-
-```text
-Slack (Socket Mode) -> slack-worker -> messages/threads (existing ingestion)
-  -> debounced Gemini analysis -> validated knowledge + evidence -> embeddings
-  -> Knowledge Base, Search, Guided Troubleshooting
-```
-
-Nobody submits anything: once a channel is monitored, new messages are analyzed automatically.
-The simulated feed stays available as a fallback.
-
-### How it works
-
-- **Socket Mode, separate worker.** The `slack-worker` Compose service (same image as the backend,
-  no hot reload, so there is exactly one listener) opens a Socket Mode WebSocket to Slack. No
-  public URL or webhook is needed. Every event is acknowledged immediately; storing and analysis
-  happen afterwards in order.
-- **Verified status.** The worker calls `auth.test` before connecting and records its state and a
-  heartbeat in the database. The Integrations page shows *Connected* only when the credentials are
-  verified, the socket is open and the heartbeat is fresh. Tokens are never sent to the browser.
-- **Explicit allowlist.** Only channels enabled on the Integrations page (or listed in
-  `SLACK_CHANNEL_IDS`) are ingested; each is stored as a communication source. Public channels only.
-- **Threads.** A Slack thread (parent + replies) becomes one conversation thread
-  (`channel:thread_ts`); channels and workspaces never mix. Message IDs are Slack `ts` values, so
-  re-delivered events never create duplicates. Ask engineers to reply **in thread**.
-- **Filtering.** Bot messages (including Elisa Echo's own), joins/topic changes, DMs and empty
-  messages are ignored.
-- **Edits and deletions.** Edits update the stored message and re-queue the thread; deletions
-  mark the message deleted (its text is no longer shown) and re-analysis drops evidence that relied
-  on it.
-- **Evidence.** Authors come from `users.info`, links from `chat.getPermalink`; if a lookup fails
-  the field stays empty (nothing is invented). Knowledge from Slack is never auto-approved.
-
-**Step-by-step setup guide with troubleshooting: [docs/slack-setup.md](docs/slack-setup.md).**
-
-### Create the Slack app (one time, workspace admin)
-
-1. Open <https://api.slack.com/apps> → **Create New App** → **From scratch**; pick a test
-   workspace.
-2. **Socket Mode** → enable it. Create an **app-level token** with the scope `connections:write`
-   (starts with `xapp-`).
-3. **OAuth & Permissions** → **Bot Token Scopes** (least privilege):
-   - `channels:history` – read messages in public channels the app is in
-   - `channels:read` – list channels and their names
-   - `users:read` – show author names
-4. **Event Subscriptions** → enable → **Subscribe to bot events** → `message.channels`.
-5. **Install App** to the workspace and copy the **Bot User OAuth Token** (starts with `xoxb-`).
-6. In Slack, create a test channel (e.g. `#noc-test`) and invite the app: `/invite @YourAppName`.
-
-No private-channel (`groups:*`), DM (`im:*`) or write scopes are needed.
-
-### Configure Elisa Echo
-
-Add to `backend/.env` (never to `frontend/.env`):
-
-```env
-SLACK_ENABLED=true
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-# Optional: enable channels at worker start (otherwise use the Integrations page)
-SLACK_CHANNEL_IDS=C0123456789
-```
-
-`SLACK_SIGNING_SECRET` is only needed for HTTP request verification, which Socket Mode does not use.
-
-```bash
-docker compose up -d --build                                   # first time (new dependencies)
-docker compose up -d --force-recreate backend slack-worker     # after changing backend/.env
-docker compose logs -f slack-worker                            # watch the connector
-```
-
-Then open **Integrations** (http://localhost:5173/integrations): the Slack card should say
-**Connected** with your workspace name. Click **Monitor** next to the test channel (or enter its
-channel ID).
-
-### Live demo
-
-1. Integrations: Slack *Connected*, `#noc-test` *Monitored*.
-2. In Slack, engineer A posts in `#noc-test`: *"The network connection keeps dropping at Site 42."*
-3. Engineer B replies **in the thread**: *"Did you try restarting the affected service rather than
-   rebooting the whole router?"*
-4. Engineer A replies in the thread: *"Yes, restarting that service fixed it."*
-5. Within ~15 s (debounce) the conversation appears on **Live Discovery** labelled *Slack
-   #noc-test*, with the extracted knowledge; Integrations → *Connector activity* shows the messages,
-   the analysis and "Embedded for semantic search".
-6. **Search** with different words, e.g. *"customers lose connectivity, reboot didn't help"*, open
-   the result: the evidence shows the real Slack messages with links back to Slack.
-7. **Build a troubleshooting guide** from it.
-
-API: `GET /api/integrations/slack/status`, `/health` (live token check), `/channels`, `/events`;
-`POST /api/integrations/slack/channels` (development only).
-
-### Limitations
-
-- No user authentication yet; changing monitored channels is restricted to development mode.
-- Single workspace, public channels, messages that arrive while the worker is running (no history
-  backfill). Replies outside a thread are separate conversations.
-- After backend code changes, recreate the worker (`--force-recreate slack-worker`); it does not
-  hot-reload.
-
-## Knowledge consolidation (related incidents)
-
-Engineers often solve the same problem in separate conversations, sometimes with different
-results under different conditions. After a knowledge item is saved and embedded, Elisa Echo
-compares it with a few similar items and groups those that describe the same problem. Original
-items are never modified or merged.
-
-### How it works
-
-1. **Candidates (bounded, never all-pairs):** cosine similarity of the item's stored embedding
-   (at least `CONSOLIDATION_MIN_SIMILARITY`) plus items sharing an equipment identifier, at most
-   `CONSOLIDATION_CANDIDATE_LIMIT`. Only knowledge from enabled sources that an expert has not
-   rejected takes part.
-2. **Pair comparison (Gemini, Pydantic-validated):** `same_problem`, `supporting_evidence`,
-   `same_problem_different_conditions`, `different_outcome`, `potentially_conflicting`,
-   `related_symptoms` or `unrelated`, with shared symptoms/equipment, condition differences,
-   unknown conditions and cited messages (labels A1/B2, mapped back by the server).
-3. **Validation:** evidence must belong to the right case; condition values (firmware, models,
-   ...) must literally appear in that case's messages, otherwise they become *unknown* (never
-   assumed equal); grouping-strength relationships without evidence on both sides are
-   downgraded to `related_symptoms`.
-4. **Groups:** an item joins a group only if it is strongly related to **every** member (no
-   transitive grouping: A~B and B~C do not put A and C together). Items that fit two groups, or
-   do not fit the group of a related item, stay ungrouped; their relationships are still shown
-   as suggestions. Relationships are stored once per pair (`source < target`, unique) and are
-   re-compared only when either item changed (content fingerprint).
-5. **Group summary (Gemini, validated):** shared problem, environment, distinct resolution paths
-   with their conditions and cases, failed attempts, contradictions and missing information.
-   The number of independent conversations is counted by the server. Summaries are always
-   `unreviewed`, never approved knowledge.
-6. **Use:** Knowledge Base shows *Related knowledge*; the **Knowledge Network** page shows each
-   group; search results show the group ("3 related incidents, 2 distinct resolution paths");
-   guide generation adds the other group members and their relationships, so the decision tree
-   only branches on conditions the cases report and asks for unknown ones.
-
-Consolidation runs in the background after indexing (API process and Slack worker); failures
-never block discovery. If Gemini is unavailable the knowledge stays saved and the item is marked
-for retry. Process pending items with the CLI (there is no HTTP endpoint because the API has no
-admin authentication):
-
-```bash
-docker compose exec backend python -m app.scripts.consolidate_knowledge --dry-run   # report only
-docker compose exec backend python -m app.scripts.consolidate_knowledge             # up to 20 items
-docker compose exec backend python -m app.scripts.consolidate_knowledge --force     # re-compare all
-```
-
-It never deletes knowledge or messages; it only removes group memberships of knowledge from
-disabled sources or rejected by an expert.
-
-### Limitations
-
-- Similarity only nominates candidates; relationship quality depends on Gemini. Every result is
-  a suggestion for expert review.
-- One global advisory lock serializes consolidation (fine for the MVP, not for high volume).
-- Access control is limited to the source `enabled` flag; there are no per-user permissions.
-- Items left incomplete (Gemini failure, per-run comparison budget, embedding pending) are
-  finished by the CLI or by the next change to the item; there is no automatic scheduler.
-
-## Real-world validation (troubleshooting feedback)
-
-Knowledge is discovered from conversations, but it is only proven when someone uses it again.
-After following a guide, engineers report per recommendation whether they tried it and what
-happened. Each report is stored as a second kind of evidence next to the original messages.
-
-### How it works
-
-- **Feedback form** on the Guided Troubleshooting page ("Did it work?"): *Yes, I tried it* /
-  *No, I did not*, then *Resolved*, *Not resolved*, *Partially resolved* or *Unknown*, plus
-  optional equipment, firmware, environment and notes. Equipment and firmware are pre-filled
-  from the guide or the engineer's earlier report. Completing a guide never counts as success.
-- **Validation:** the session must exist; the step must belong to its guide, be a
-  recommendation or resolution, and have been reached; the knowledge item must be a source of
-  that step; `attempted=false` cannot carry an outcome. Clients cannot set
-  `verification_status` (always `self_reported`).
-- **Idempotent:** one record per (session, step, knowledge item). Re-sending identical feedback
-  returns the existing record; corrections keep the previous versions (`revisions`).
-- **Separate origin:** feedback is never turned into fake messages and never changes the
-  knowledge's resolution or approval status.
-- **Aggregation:** one report per session and knowledge item; success/failure totals count
-  only real attempts; breakdowns by firmware and equipment; a success rate only from 5 attempts
-  on, labelled as self-reported.
-- **Where it shows:** Knowledge Base "Real-world validation" (conversation confirmation,
-  self-reported outcomes, independent verification and formal approval as four separate
-  facts, plus individual records); search results ("Reported resolved in 3 troubleshooting
-  sessions; not resolved in 1", without changing ranking); Dashboard metrics; knowledge group
-  summaries (refreshed in the background); and new guides, which receive the counts by
-  firmware so they can ask for the firmware and warn where an action failed.
-
-### Access (MVP limitation)
-
-There are no user accounts. Creating feedback returns a one-time `edit_token` that the browser
-keeps; corrections require it in `X-Feedback-Token`, so only the submitting browser can change a
-report. Engineer identities are not recorded. There is no independent verification workflow
-yet, so every report is `self_reported`.
-
-### Try it
-
-1. Run discovery (Live Discovery) so that knowledge exists.
-2. Guided Troubleshooting: describe a similar problem, follow the guide to a recommendation.
-3. In "Did it work?" choose *Yes, I tried it* → *Resolved*, add firmware `3.2`, save.
-4. Start a second session for the same guide, report *Not resolved* on firmware `4.0`.
-5. Open the knowledge item: both reports appear under Real-world validation, with the firmware
-   breakdown; the approval status is unchanged. Search shows the summary.
-6. Generate a new guide mentioning firmware 4.0: the earlier failure is part of its context.
-
-## Context assertions: email, entities and time validity
-
-This part maps Elisa Echo to the challenge's reference model: every piece of captured context is
-a **context assertion bound to network entities, with its source and a validity period**.
-
-### Email as a source (no extra work for experts)
-
-Experts keep answering by email and CC (or forward to) a shared knowledge mailbox. Each mailbox
-is a communication source whose `enabled` flag is the allowlist.
-
-- `.eml` or JSON emails are parsed; quoted history ("> ...", "On ... wrote:", Outlook
-  "Original Message") and signatures are removed, so each stored message is what its author wrote.
-- Replies join their thread via `References` / `In-Reply-To`, then by normalized subject
-  (`RE:`/`FW:`/`VS:` stripped). The `Message-ID` makes re-imports idempotent.
-- Email threads go through the same discovery pipeline as chat (Gemini, validation, evidence).
-- Demo intake: **Integrations → Email** (import the sample emails or upload `.eml` files),
-  `POST /api/integrations/email/import` (development only), or the CLI:
-
-```bash
-docker compose exec backend python -m app.scripts.import_email app/seed/emails --analyze
-```
-
-  Production would read the shared mailbox automatically (IMAP / Microsoft Graph).
-
-#### Connect a real mailbox (IMAP, e.g. Gmail)
-
-**Integrations → Email → Connect your mailbox.** Elisa Echo then checks one folder/label every
-minute (`EMAIL_POLL_SECONDS`) and analyzes new emails automatically.
-
-1. Gmail: turn on 2-Step Verification, create an **app password** at
-   myaccount.google.com/apppasswords (your normal password does not work over IMAP).
-2. In Gmail create a label, e.g. `Elisa Echo`, and put (or filter) the work emails you want
-   read into it. Every email costs one Gemini call, so do not point it at a busy inbox.
-3. Enter the address, the app password and the label; the login is verified before anything is
-   stored. Other providers: change the IMAP server (e.g. `outlook.office365.com`).
-
-Safety: read-only (`SELECT` read-only + `BODY.PEEK`: nothing is moved, deleted or marked read);
-first check limited to the last N days, then only newer emails, at most N per check; the
-password is encrypted at rest (Fernet; key in `EMAIL_CREDENTIALS_KEY` or the git-ignored
-`backend/.local/credentials.key`), never returned by the API, never logged, and deleted on
-Disconnect (imported emails and knowledge stay). Development mode only, because the app has
-no login yet. Email text is sent to Gemini for analysis.
-
-### Entity binding with the network inventory
-
-Gemini copies identifiers and states the scope; the server binds deterministically:
-
-| Link | Source | Example |
-| --- | --- | --- |
-| `equipment / observed_on` | conversation | TRN-042 |
-| `unit_class / applies_to` | inventory, **only if the conversation says it applies to that kind of unit** | TX-900 transmission unit (legacy generation) |
-| `site / located_at` | inventory | SITE-OULU-07 |
-| `site / access_to` | conversation (site access knowledge) | SITE-PELLO-03 |
-| `event / triggered_by` | conversation (every word must appear in it) | SFP replacement |
-
-Search uses these links: a question about **TRN-118** (same legacy unit class, never mentioned
-in any conversation) finds the TRN-042 fix with the signal `trn118 (same unit class)`; the newer
-TRN-305 does not inherit it. The synthetic inventory (sites, nodes, unit class, install year) is
-in `app/seed/inventory.py` and is shown on the Integrations page (`GET /api/inventory`).
-
-### Site access information
-
-Besides troubleshooting, Gemini recognises access knowledge (where a barrier key is kept, gate
-codes, road conditions, who to call) as `knowledge_type = site_access`, bound to the site. It is
-searchable and shown with a "Site access" badge.
-
-### Time validity (`valid_from` / `valid_to`)
-
-- `valid_from` = the first evidence message; `valid_to` empty = still believed true.
-- When a newer case explicitly says older information is no longer valid, consolidation marks
-  the older item as replaced. The server accepts this only if both sides cite evidence and the
-  replacing case is really newer; `valid_to` is set to when the replacement was first reported,
-  and `superseded_by` points to the new item. A later re-comparison can undo it.
-- Search and guides serve only currently valid knowledge by default. Search can include
-  outdated knowledge (clearly marked) or answer **"what was valid on date X"** (`as_of`).
-- Consolidation compares items that share a node or site, so two notes about the same barrier
-  are compared even when their wording differs.
-
-### Demo: the Elisa Appendix A case
-
-1. Live Discovery → start the feed (or `python -m app.seed` and analyze the threads). It delivers
-   the **Teams conversation** between Veikko and Erkki about TRN-042 and the **same case by
-   email**, plus the barrier-key conversations.
-2. Knowledge Base: "Traffic not recovering after SFP replacement on older transmission units",
-   confirmed in conversation, linked to TRN-042, the legacy TX-900 unit class, SITE-OULU-07 and
-   the SFP replacement event; the email version is grouped with it in the Knowledge Network.
-3. Search (as an agent would): "TRN-118: swapped the optical module, port is up, light levels
-   fine, but zero traffic" → the TRN-042 knowledge via the unit class; Guided Troubleshooting
-   proposes checking the traffic counters and disabling/re-enabling the interface before
-   replacing hardware or rebooting.
-4. Access: the 2025 email (lockbox, code 4471) is marked **outdated since 28 Oct 2026**, replaced
-   by the Teams note (key at the Pello depot, tag P3). Search returns the current instruction;
-   with "Valid on 2025-06-01" it returns the old one.
-
-### Synthetic data we generated
-
-All data is fictional (`*.invalid` domains, "(synthetic)" names, no personal or production data):
-
-| Data | Where | Purpose |
-| --- | --- | --- |
-| Appendix A Teams chat (TRN-042, 12 messages, verbatim from the brief) | `app/seed/demo_data.py` | Hidden expert knowledge from chat |
-| Appendix A email thread (question + Erkki's reply with quoted history) | `app/seed/emails/01-02*.eml` | Same knowledge from email; quote stripping, threading |
-| Barrier-key email from 2025 (lockbox code) | `app/seed/emails/03-pello03-access-2025.eml` | Access information that later becomes outdated |
-| Barrier-key Teams chat from 2026 (lock replaced, key at depot) | `app/seed/demo_data.py` | Newer information replacing the old |
-| Site 42 / 17 / 58 router conversations | `app/seed/demo_data.py` | Same symptoms, different causes; supporting evidence; firmware conditions |
-| BGP, OLT and lunch threads | `app/seed/demo_data.py` | Multiple suggested fixes, unresolved incident, irrelevant chatter |
-| Network inventory: 6 sites, 6 nodes (TRN-042/118 legacy TX-900, TRN-305 newer TX-2000, routers) | `app/seed/inventory.py` | Correct entity and unit-class binding |
-
-The conversations were written by hand in the style of the brief: the Appendix A texts are
-used as given; the other cases vary one factor at a time (cause, firmware, time) to test linking,
-conflicts and validity.
-
-## Backend tests
-
-Unit tests need no database. They force `DATABASE_URL` empty, so they never touch Tiger Data even
-if `backend/.env` is configured:
-
-```bash
-docker compose exec backend pytest
-```
-
-Integration tests need an **isolated, disposable** PostgreSQL database. They rebuild its schema,
-so they refuse to run unless the database name contains `test`. **Never point them at the shared
-Tiger Data database.** The simplest option is a throwaway local container (test-only, not part of
-`compose.yaml`):
-
-```bash
-# Start (once). It joins the Compose network so the backend container can reach it.
-docker run -d --name elisa-echo-testdb --network elisa-echo_default \
-  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=elisa_echo_test \
-  pgvector/pgvector:0.8.7-pg17-trixie
-
-# Run everything
-docker compose exec -e TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@elisa-echo-testdb:5432/elisa_echo_test backend pytest
-
-# Remove when done
-docker rm -f elisa-echo-testdb
-```
-
-In PowerShell, put the `docker run` command on one line (or replace each trailing `\` with a
-backtick). Without `TEST_DATABASE_URL` the integration tests are skipped.
-
-## Environment variables
-
-| File                    | Variable            | Default                 | Notes                                 |
-| ----------------------- | ------------------- | ----------------------- | ------------------------------------- |
-| `frontend/.env`         | `VITE_API_BASE_URL` | `/api`                  | Public. Bundled into browser code.    |
-| `backend/.env`          | `APP_NAME`          | `Elisa Echo API`        |                                       |
-| `backend/.env`          | `ENVIRONMENT`       | `development`           |                                       |
-| `backend/.env`          | `CORS_ORIGINS`      | `http://localhost:5173` | Comma-separated list                  |
-| `backend/.env`          | `DATABASE_URL`      | –                       | Tiger Data connection string. Secret. |
-| `backend/.env`          | `DATABASE_POOL_SIZE` / `DATABASE_MAX_OVERFLOW` | `5` / `5` | Connection pool tuning   |
-| `backend/.env`          | `DATABASE_CONNECT_TIMEOUT_SECONDS` | `5`      |                                       |
-| `backend/.env`          | `GEMINI_API_KEY`    | –                       | Enables discovery. Secret.            |
-| `backend/.env`          | `GEMINI_MODEL`      | `gemini-3.8-flash`      | Gemini model with JSON output         |
-| `backend/.env`          | `GEMINI_TIMEOUT_SECONDS` / `GEMINI_MAX_ATTEMPTS` | `60` / `3` | Per request / total attempts |
-| `backend/.env`          | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` | Must output 768 dims (DB column) |
-| `backend/.env`          | `SEARCH_MIN_SIMILARITY` / `SEARCH_SIMILARITY_MARGIN` | `0.65` / `0.06` | Semantic cut-off (calibrated) |
-| `backend/.env`          | `SEARCH_CANDIDATE_POOL` | `20`                | Candidates per retriever before fusion |
-| `backend/.env`          | `CONSOLIDATION_ENABLED` | `true`              | Compare new knowledge with related items |
-| `backend/.env`          | `CONSOLIDATION_CANDIDATE_LIMIT` / `CONSOLIDATION_MIN_SIMILARITY` | `6` / `0.6` | Candidates compared per item |
-| `backend/.env`          | `CONSOLIDATION_MAX_GROUP_SIZE` | `12`         |                                       |
-| `backend/.env`          | `DISCOVERY_DEBOUNCE_SECONDS` | `12`           | Quiet time before analyzing a thread  |
-| `backend/.env`          | `DISCOVERY_MAX_CONCURRENT_ANALYSES` | `2`     |                                       |
-| `backend/.env`          | `SIMULATION_MESSAGE_INTERVAL_SECONDS` | `2` | Demo feed speed                      |
-| shell only              | `TEST_DATABASE_URL` | –                       | Isolated test DB for integration tests |
-
-`ENVIRONMENT` controls development-only features: the seed script and `POST /api/sources`
-only work when it is `development` or `test`.
-
-> **Security:** anything prefixed with `VITE_` is shipped to every browser. Never put the Gemini
-> key, database credentials or any other secret in the frontend. Secrets belong in
-> `backend/.env`, which is git-ignored. Only the `.env.example` files are committed.
-
-## Local development without Docker (optional)
-
-Requires Node.js 24 LTS and Python 3.12.
-
-**Backend**
-
-```bash
-cd backend
-python -m venv .venv
-# Windows PowerShell:  .venv\Scripts\Activate.ps1
-# macOS / Linux:       source .venv/bin/activate
-pip install -r requirements-dev.txt
-alembic upgrade head          # needs DATABASE_URL in backend/.env
-uvicorn app.main:app --reload --port 8000
-```
-
-**Frontend** (in a second terminal)
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-## Quality checks (frontend)
-
-```bash
-cd frontend
-npm run typecheck     # TypeScript, strict mode
-npm run lint          # ESLint
-npm run format        # Prettier (write)  ·  npm run format:check to verify only
-npm run build         # Production build into dist/
-```
-
-To run them inside the container instead: `docker compose exec frontend npm run lint`.
-
-## Adding shadcn/ui components
-
-```bash
-cd frontend
-npx shadcn@latest add dialog
-```
-
-Components are generated into `frontend/src/components/ui/`. Commit them like any other source.
-If the container is running, recreate the `node_modules` volume afterwards if the command
-installed new packages (see "When dependencies change").
-
-## Roadmap
-
-| Phase | Focus                                                                       | Status   |
-| ----- | --------------------------------------------------------------------------- | -------- |
-| 1     | Project foundation and Docker                                               | **Done** |
-| 2     | Database schema: sources, threads, messages, knowledge, provenance, vectors | **Done** |
-| 3     | Simulated live ingestion with automatic Gemini knowledge extraction         | **Done** |
-| 4     | Vector, keyword and contextual retrieval                                    | **Done** |
-| 5     | Evidence-backed guided troubleshooting with React Flow                      | **Done** |
-| 6     | Knowledge consolidation, expert feedback and demo polish                    | Next     |
-
-Details, scope and "done when" criteria for each phase: [docs/roadmap.md](docs/roadmap.md).
+Integration tests rebuild the schema and refuse to run unless the database name contains `test`.
+
+**Limitations:**
+
+- **No production access control.** There is no authentication, and no per-user or per-source
+  permissions. Administrative actions are gated only by `ENVIRONMENT=development`.
+- **No expert approval workflow.** Every item remains "Needs review", and feedback is
+  self-reported only.
+- **Integration maturity.** Slack is limited to a single workspace and public channels, with no
+  history backfill. Teams, Discord and Google Chat are future integrations. The inventory is
+  synthetic.
+- **Prototype runtime.** Analysis scheduling is in-process, so a backend restart drops queued
+  analyses (start the demo feed again to re-queue them). It runs locally only.
+- **No accuracy benchmarks.** No precision, recall or time-saving figures have been measured.
+  The search thresholds were calibrated on the small demo dataset.
+- **Data handling.** Message text is sent to the Gemini API, with no PII redaction.
+
+## Further documentation
+
+| Document | Contents |
+| --- | --- |
+| [docs/architecture.md](docs/architecture.md) | Original design: discovery workflow, data model and table descriptions. Written before the Slack and consolidation work, so the code takes precedence where they differ |
+| [docs/slack-setup.md](docs/slack-setup.md) | Step-by-step Slack app setup and troubleshooting |
+| [docs/slack-app-manifest.yaml](docs/slack-app-manifest.yaml) | Slack app manifest: Socket Mode, read-only scopes, `message.channels` |
+| [docs/roadmap.md](docs/roadmap.md) | Development phases |
+| [backend/.env.example](backend/.env.example) | Every configuration variable with defaults |
+| <http://localhost:8000/docs> | Live OpenAPI reference for all endpoints (when running) |
