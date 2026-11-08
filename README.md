@@ -23,7 +23,26 @@
 
 ---
 
-**Contents:** [Overview](#overview) · [Implemented capabilities](#implemented-capabilities) · [Example: knowledge reuse](#example-knowledge-reuse-synthetic-scenario) · [How Elisa Echo works](#how-elisa-echo-works) · [Knowledge intelligence](#knowledge-intelligence-core-technical-principles) · [Technical architecture](#technical-architecture) · [Integrations](#integrations) · [Installation and setup](#installation-and-local-setup) · [Testing and limitations](#testing-and-current-limitations) · [Further documentation](#further-documentation)
+## Table of contents
+
+1. [Overview](#overview)
+2. [Implemented capabilities](#implemented-capabilities)
+3. [Example: knowledge reuse (synthetic scenario)](#example-knowledge-reuse-synthetic-scenario)
+4. [How Elisa Echo works](#how-elisa-echo-works)
+5. [Knowledge intelligence: core technical principles](#knowledge-intelligence-core-technical-principles)
+   - [Knowledge detection: relevant or not?](#knowledge-detection-relevant-or-not)
+   - [Evidence validation](#evidence-validation)
+   - [Entity linking](#entity-linking)
+   - [Embeddings and hybrid retrieval](#embeddings-and-hybrid-retrieval)
+   - [Knowledge relationships and validity](#knowledge-relationships-and-validity)
+   - [Guided troubleshooting](#guided-troubleshooting)
+   - [Outcome feedback](#outcome-feedback)
+   - [Failure handling](#failure-handling)
+6. [Technical architecture](#technical-architecture)
+7. [Integrations](#integrations)
+8. [Installation and local setup](#installation-and-local-setup)
+9. [Testing and current limitations](#testing-and-current-limitations)
+10. [Further documentation](#further-documentation)
 
 ---
 
